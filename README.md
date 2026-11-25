@@ -87,6 +87,24 @@ Pestaña **Personajes** del panel derecho: una ficha por personaje del proyecto.
 - Desde la lista lateral, arrastra una miniatura a una viñeta para usarla como imagen.
 - Las referencias se guardan en IndexedDB aparte de la biblioteca de **Imágenes**. Al quitar una referencia o borrar un personaje, el archivo solo se elimina si ninguna viñeta lo usa.
 
+## Empaquetar proyecto
+
+Botón **Empaquetar** de la cabecera (Chrome, Edge o Brave; Safari no permite escribir en carpetas):
+
+```
+<Proyecto>/
+├─ imagenes/            biblioteca (admite subcarpetas propias)
+├─ personajes/<Nombre>/ ficha.txt + cuerpo/ rostro/ ropa/ variantes/
+├─ paginas/             001_pagina.png… (opcional, PNG 2×)
+├─ proyecto.koma.json   datos del proyecto + mapa de archivos
+└─ LEEME.txt
+```
+
+- La primera vez eliges dónde crearla; la carpeta queda vinculada al proyecto (el navegador puede volver a pedir permiso).
+- **Actualizar paquete** copia lo nuevo sin duplicar: las imágenes conservan su ruta y las que no cambian no se reescriben.
+- **Importar imágenes nuevas**: deja en `imagenes/` (o en las carpetas de un personaje) lo que descargues y se importa a la biblioteca o a la ficha. Una carpeta nueva en `personajes/` con subcarpetas `cuerpo/`, `rostro/`, `ropa/` o `variantes/` crea el personaje.
+- Koma nunca borra archivos de la carpeta; los que no son imágenes se ignoran.
+
 ## Exportación
 
 Botón **Exportar** de la cabecera:

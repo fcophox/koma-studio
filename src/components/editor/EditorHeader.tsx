@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Check, Download, Loader2, Redo2, Settings2, Undo2 } from "lucide-react";
+import { AlertTriangle, Check, Download, FolderSync, Loader2, Redo2, Settings2, Undo2 } from "lucide-react";
 import { Logo } from "@/components/shared/Logo";
 import { Button, IconButton } from "@/components/ui/Button";
 import { getFormat } from "@/lib/formats";
 import { selectCanRedo, selectCanUndo, useEditorStore, type SaveStatus } from "@/lib/store/editor-store";
 import { formatChapter } from "@/lib/utils";
 import { ExportDialog } from "./ExportDialog";
+import { PackageDialog } from "./PackageDialog";
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
 
 const SAVE_LABEL: Record<SaveStatus, string> = {
@@ -45,6 +46,7 @@ export function EditorHeader() {
   const redo = useEditorStore((s) => s.redo);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isPackageOpen, setIsPackageOpen] = useState(false);
 
   if (!project) return null;
   const format = getFormat(project.formatId);
@@ -86,9 +88,17 @@ export function EditorHeader() {
           <Settings2 className="size-4" />
         </IconButton>
         <Button
-          variant="primary"
           size="sm"
           className="ml-2"
+          icon={<FolderSync className="size-3.5" />}
+          onClick={() => setIsPackageOpen(true)}
+          title="Guardar el proyecto en una carpeta ordenada de tu disco"
+        >
+          Empaquetar
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
           icon={<Download className="size-3.5" />}
           onClick={() => setIsExportOpen(true)}
         >
@@ -98,6 +108,7 @@ export function EditorHeader() {
 
       <ProjectSettingsDialog isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <ExportDialog isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
+      <PackageDialog isOpen={isPackageOpen} onClose={() => setIsPackageOpen(false)} />
     </header>
   );
 }
