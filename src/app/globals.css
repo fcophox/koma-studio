@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-comic: var(--font-comic-neue), "Comic Sans MS", cursive;
+  --font-display: var(--font-bangers), Impact, sans-serif;
+
+  --color-accent: #ff5a36;
+  --color-accent-hover: #ff7352;
+  --color-accent-soft: rgb(255 90 54 / 0.14);
+
+  --color-surface-0: #09090b; /* fondo de la app */
+  --color-surface-1: #111114; /* paneles laterales */
+  --color-surface-2: #18181c; /* tarjetas, inputs */
+  --color-surface-3: #222228; /* hover */
+  --color-line: #27272d;
+  --color-line-strong: #3a3a42;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-surface-0);
+    color: var(--color-zinc-100);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button {
+    opacity: 0.4;
+  }
+
+  dialog::backdrop {
+    background: rgb(0 0 0 / 0.65);
+    backdrop-filter: blur(2px);
+  }
+}
+
+@layer components {
+  .workspace-bg {
+    background-color: #0d0d10;
+    background-image: radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+
+  /* Slider minimal */
+  .range {
+    appearance: none;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-line-strong);
+    cursor: pointer;
+  }
+  .range::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: var(--color-zinc-100);
+    border: 2px solid var(--color-surface-1);
+    box-shadow: 0 0 0 1px var(--color-line-strong);
+  }
+  .range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--color-zinc-100);
+    border: 2px solid var(--color-surface-1);
+  }
+}
