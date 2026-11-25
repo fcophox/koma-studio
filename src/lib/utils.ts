@@ -45,3 +45,8 @@ export function isTypingTarget(target: EventTarget | null) {
   const tag = target.tagName;
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
+
+/** Hay un <dialog> modal abierto: los atajos del lienzo no deben actuar. */
+export function isModalOpen() {
+  return typeof document !== "undefined" && !!document.querySelector("dialog[open]");
+}

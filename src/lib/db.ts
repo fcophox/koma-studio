@@ -69,6 +69,13 @@ export async function duplicateProject(id: string): Promise<Project | null> {
     return [nid, { ...a, id: nid, projectId: copy.id }];
   });
 
+  const remap = (id: string) => idMap.get(id) ?? id;
+  copy.characters = copy.characters.map((ch) => ({
+    ...ch,
+    avatarAssetId: ch.avatarAssetId ? remap(ch.avatarAssetId) : null,
+    images: ch.images.map((img) => ({ ...img, assetId: remap(img.assetId) })),
+  }));
+
   copy.pages = copy.pages.map((pg) => {
     const cloned = clonePage(pg);
     cloned.panels = cloned.panels.map((pn) =>
@@ -92,7 +99,12 @@ function readImageSize(blob: Blob): Promise<{ width: number; height: number }> {
   });
 }
 
-export async function addAsset(projectId: string, file: File | Blob, name?: string): Promise<AssetMeta> {
+export async function addAsset(
+  projectId: string,
+  file: File | Blob,
+  name?: string,
+  kind: Asset["kind"] = "library",
+): Promise<AssetMeta> {
   const { width, height } = await readImageSize(file);
   const asset: Asset = {
     id: newId("as_"),
@@ -104,6 +116,7 @@ export async function addAsset(projectId: string, file: File | Blob, name?: stri
     size: file.size,
     blob: file,
     createdAt: Date.now(),
+    kind,
   };
   await set(asset.id, asset, assets());
   const { blob: _blob, ...meta } = asset;

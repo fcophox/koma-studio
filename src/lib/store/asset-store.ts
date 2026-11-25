@@ -21,7 +21,7 @@ interface AssetState {
   load: (projectId: string) => Promise<void>;
   reset: () => void;
   /** Guarda los archivos válidos en IndexedDB y devuelve sus metadatos. */
-  importFiles: (files: File[]) => Promise<AssetMeta[]>;
+  importFiles: (files: File[], kind?: "library" | "character") => Promise<AssetMeta[]>;
   remove: (assetId: string) => Promise<void>;
 }
 
@@ -39,7 +39,7 @@ export const useAssetStore = create<AssetState>()((set, get) => ({
 
   reset: () => set({ projectId: null, assets: [], importingCount: 0, lastError: null }),
 
-  importFiles: async (files) => {
+  importFiles: async (files, kind = "library") => {
     const { projectId } = get();
     if (!projectId) return [];
     const valid = files.filter(isAcceptedImage);
@@ -50,7 +50,7 @@ export const useAssetStore = create<AssetState>()((set, get) => ({
     }
 
     set((s) => ({ importingCount: s.importingCount + valid.length, lastError: null }));
-    const results = await Promise.allSettled(valid.map((f) => addAsset(projectId, f)));
+    const results = await Promise.allSettled(valid.map((f) => addAsset(projectId, f, undefined, kind)));
     const added = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
     const failed = results.length - added.length + rejected;
 

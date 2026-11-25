@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useEditorStore } from "../store/editor-store";
-import { isTypingTarget } from "../utils";
+import { isModalOpen, isTypingTarget } from "../utils";
 
 /**
  * Atajos globales del editor. Zoom/pan (Espacio, Ctrl+0, rueda) viven en el
@@ -42,7 +42,7 @@ export function useEditorShortcuts(isEnabled: boolean) {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target)) return;
+      if (isTypingTarget(e.target) || isModalOpen()) return;
       const store = useEditorStore.getState();
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();

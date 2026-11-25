@@ -5,6 +5,8 @@ import { applyTemplateToPage, cloneElement, clonePage, createPage } from "../fac
 import { mirrorNormalized } from "../geometry";
 import type {
   CanvasElement,
+  Character,
+  CharacterImage,
   Page,
   PageNumbering,
   PanelStyle,
@@ -92,6 +94,14 @@ export interface EditorState {
   redo: () => void;
 
   setSaveStatus: (status: SaveStatus, savedAt?: number) => void;
+
+  // Personajes (nivel proyecto: se autoguardan, fuera del deshacer por página)
+  addCharacter: (character: Character) => void;
+  updateCharacter: (characterId: string, patch: Partial<Omit<Character, "id" | "images">>) => void;
+  deleteCharacter: (characterId: string) => void;
+  addCharacterImages: (characterId: string, images: CharacterImage[]) => void;
+  updateCharacterImage: (characterId: string, imageId: string, patch: Partial<Omit<CharacterImage, "id">>) => void;
+  removeCharacterImage: (characterId: string, imageId: string) => void;
 }
 
 export const useEditorStore = create<EditorState>()((set, get) => {
@@ -417,6 +427,41 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         history: { ...history, [activePageId]: { past: [...h.past, current], future: rest } },
       });
     },
+
+    addCharacter: (character) => mutate((p) => ({ ...p, characters: [...p.characters, character] })),
+
+    updateCharacter: (characterId, patch) =>
+      mutate((p) => ({
+        ...p,
+        characters: p.characters.map((ch) => (ch.id === characterId ? { ...ch, ...patch } : ch)),
+      })),
+
+    deleteCharacter: (characterId) =>
+      mutate((p) => ({ ...p, characters: p.characters.filter((ch) => ch.id !== characterId) })),
+
+    addCharacterImages: (characterId, images) =>
+      mutate((p) => ({
+        ...p,
+        characters: p.characters.map((ch) => (ch.id === characterId ? { ...ch, images: [...ch.images, ...images] } : ch)),
+      })),
+
+    updateCharacterImage: (characterId, imageId, patch) =>
+      mutate((p) => ({
+        ...p,
+        characters: p.characters.map((ch) =>
+          ch.id === characterId
+            ? { ...ch, images: ch.images.map((img) => (img.id === imageId ? { ...img, ...patch } : img)) }
+            : ch,
+        ),
+      })),
+
+    removeCharacterImage: (characterId, imageId) =>
+      mutate((p) => ({
+        ...p,
+        characters: p.characters.map((ch) =>
+          ch.id === characterId ? { ...ch, images: ch.images.filter((img) => img.id !== imageId) } : ch,
+        ),
+      })),
 
     setSaveStatus: (status, savedAt) =>
       set((s) => ({ saveStatus: status, lastSavedAt: savedAt ?? s.lastSavedAt })),

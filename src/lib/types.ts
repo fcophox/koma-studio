@@ -156,8 +156,35 @@ export interface Project {
   /** Estilo aplicado a las páginas nuevas. */
   defaultStyle: PanelStyle;
   pages: Page[];
+  /** Fichas de personaje del proyecto (biblia de personajes). */
+  characters: Character[];
   createdAt: number;
   updatedAt: number;
+}
+
+export type CharacterImageCategory = "body" | "face" | "outfit" | "variant";
+
+/** Imagen de referencia de un personaje (cuerpo, rostro, ropa o variante). */
+export interface CharacterImage {
+  id: string;
+  assetId: string;
+  category: CharacterImageCategory;
+  /** Etiqueta libre: "De frente", "Enojado", "Uniforme escolar"… */
+  label: string;
+}
+
+export interface Character {
+  id: string;
+  name: string;
+  /** Protagonista, antagonista, secundario… (texto libre). */
+  role: string;
+  description: string;
+  /** Color identificativo en listas. */
+  color: string;
+  /** Imagen usada como avatar; si es null se usa el primer rostro. */
+  avatarAssetId: string | null;
+  images: CharacterImage[];
+  createdAt: number;
 }
 
 /** Imagen local persistida en IndexedDB (separada del proyecto). */
@@ -171,6 +198,8 @@ export interface Asset {
   size: number;
   blob: Blob;
   createdAt: number;
+  /** "character" = referencia de una ficha; no se lista en la biblioteca de imágenes. */
+  kind?: "library" | "character";
 }
 
 export type AssetMeta = Omit<Asset, "blob">;

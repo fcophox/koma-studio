@@ -66,7 +66,7 @@ function AssetThumb({ asset, usage, canPlace, onPlace, onRemove }: ThumbProps) {
 }
 
 export function AssetsTab() {
-  const assets = useAssetStore((s) => s.assets);
+  const allAssets = useAssetStore((s) => s.assets);
   const importingCount = useAssetStore((s) => s.importingCount);
   const lastError = useAssetStore((s) => s.lastError);
   const importFiles = useAssetStore((s) => s.importFiles);
@@ -87,6 +87,8 @@ export function AssetsTab() {
   }, [project?.pages]);
 
   const selectedPanel = selection?.kind === "panel" ? selection : null;
+  // Las referencias de personajes viven en su ficha, no en la biblioteca.
+  const assets = allAssets.filter((a) => a.kind !== "character");
 
   const handleFiles = (files: FileList | null) => {
     if (files?.length) void importFiles(Array.from(files));

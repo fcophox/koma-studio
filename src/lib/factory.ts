@@ -6,6 +6,7 @@ import {
   SCHEMA_VERSION,
   type BubbleKind,
   type CanvasElement,
+  type Character,
   type OnomatopoeiaElement,
   type Page,
   type PageFormatId,
@@ -98,6 +99,7 @@ export function createProject(input: NewProjectInput): Project {
     },
     defaultStyle: { ...DEFAULT_PANEL_STYLE },
     pages,
+    characters: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -127,6 +129,7 @@ export function migrateProject(raw: Project): Project {
     ),
     style: { ...DEFAULT_PANEL_STYLE, ...pg.style },
   }));
+  p.characters = p.characters ?? [];
   if (p.pages.length === 0) p.pages = [createPage(DEFAULT_TEMPLATE_ID, p.readingDirection, p.defaultStyle)];
   return p;
 }
@@ -211,4 +214,17 @@ export function createCustomSfx(text: string, x: number, y: number, style?: Onom
 
 export function cloneElement(el: CanvasElement, dx = 24, dy = 24): CanvasElement {
   return { ...structuredClone(el), id: newId("el_"), x: el.x + dx, y: el.y + dy };
+}
+
+export function createCharacter(name: string, color: string): Character {
+  return {
+    id: newId("ch_"),
+    name,
+    role: "",
+    description: "",
+    color,
+    avatarAssetId: null,
+    images: [],
+    createdAt: Date.now(),
+  };
 }

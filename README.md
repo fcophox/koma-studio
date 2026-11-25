@@ -76,6 +76,17 @@ src/
 - **Onomatopeyas:** catálogo por categorías (Acción, Velocidad, Emoción, Efectos) con versiones en japonés (ドン, ゴゴゴ, ドキドキ). Color de relleno y contorno, inclinación, espaciado, modo vertical y texto propio con el mismo estilo.
 - Fuentes self-hosted: Comic Neue, Bangers, Dela Gothic One (japonés) e Inter. Los proyectos guardan un id de fuente, no el nombre interno de next/font.
 
+## Personajes
+
+Pestaña **Personajes** del panel derecho: una ficha por personaje del proyecto.
+
+- Nombre, rol (protagonista, rival…), color identificativo y descripción libre.
+- Cuatro sets de referencias: **Cuerpo**, **Rostro**, **Ropa** y **Variantes**. Suelta imágenes en cada sección o usa "Añadir"; cada una lleva una etiqueta editable ("De frente", "Enojada"…).
+- Avatar: el que elijas con la estrella o, si no, el primer rostro.
+- Clic en una referencia para verla en grande (`Esc` para volver).
+- Desde la lista lateral, arrastra una miniatura a una viñeta para usarla como imagen.
+- Las referencias se guardan en IndexedDB aparte de la biblioteca de **Imágenes**. Al quitar una referencia o borrar un personaje, el archivo solo se elimina si ninguna viñeta lo usa.
+
 ## Exportación
 
 Botón **Exportar** de la cabecera:

@@ -1,20 +1,22 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Images, Layers, LayoutPanelTop, MessageCircle, Zap } from "lucide-react";
+import { Images, Layers, LayoutPanelTop, MessageCircle, Users, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { selectActivePage, useEditorStore } from "@/lib/store/editor-store";
 import { AssetsTab } from "./tools/AssetsTab";
 import { BubblesTab } from "./tools/BubblesTab";
+import { CharactersTab } from "./tools/CharactersTab";
 import { LayersTab } from "./tools/LayersTab";
 import { PageTab } from "./tools/PageTab";
 import { SfxTab } from "./tools/SfxTab";
 
-type TabId = "page" | "images" | "bubbles" | "sfx" | "layers";
+type TabId = "page" | "images" | "characters" | "bubbles" | "sfx" | "layers";
 
 const TABS: Array<{ id: TabId; label: string; icon: ReactNode }> = [
   { id: "page", label: "Página", icon: <LayoutPanelTop className="size-4" /> },
   { id: "images", label: "Imágenes", icon: <Images className="size-4" /> },
+  { id: "characters", label: "Personajes", icon: <Users className="size-4" /> },
   { id: "bubbles", label: "Globos", icon: <MessageCircle className="size-4" /> },
   { id: "sfx", label: "SFX", icon: <Zap className="size-4" /> },
   { id: "layers", label: "Capas", icon: <Layers className="size-4" /> },
@@ -38,7 +40,7 @@ export function ToolsSidebar() {
 
   return (
     <aside className="flex w-72 shrink-0 flex-col border-l border-line bg-surface-1" aria-label="Herramientas">
-      <div role="tablist" className="grid h-10 shrink-0 grid-cols-5 border-b border-line px-1">
+      <div role="tablist" className="grid h-10 shrink-0 grid-cols-6 border-b border-line px-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -69,6 +71,7 @@ export function ToolsSidebar() {
       >
         {tab === "page" && <PageTab />}
         {tab === "images" && <AssetsTab />}
+        {tab === "characters" && <CharactersTab />}
         {tab === "bubbles" && <BubblesTab />}
         {tab === "sfx" && <SfxTab />}
         {tab === "layers" && <LayersTab />}

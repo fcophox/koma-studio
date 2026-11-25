@@ -14,7 +14,7 @@ import { useFontsVersion } from "@/lib/hooks/use-fonts-version";
 import { getSfxPreset } from "@/lib/sfx-catalog";
 import { selectActivePage, selectActivePageIndex, useEditorStore } from "@/lib/store/editor-store";
 import type { CanvasElement } from "@/lib/types";
-import { cn, isTypingTarget } from "@/lib/utils";
+import { cn, isModalOpen, isTypingTarget } from "@/lib/utils";
 import { PageRenderer } from "./PageRenderer";
 import { TextEditOverlay } from "./TextEditOverlay";
 
@@ -121,7 +121,7 @@ export function CanvasStage() {
   // ── Teclado: Espacio para mover, Ctrl +/−/0 para zoom ──────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target)) return;
+      if (isTypingTarget(e.target) || isModalOpen()) return;
       const mod = e.metaKey || e.ctrlKey;
       if (e.code === "Space") {
         e.preventDefault();
