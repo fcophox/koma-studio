@@ -13,7 +13,7 @@ export function UndoToast() {
 
   useEffect(() => {
     if (!toast) return;
-    const id = setTimeout(dismiss, AUTO_HIDE_MS);
+    const id = setTimeout(dismiss, toast.duration ?? AUTO_HIDE_MS);
     return () => clearTimeout(id);
   }, [toast, dismiss]);
 

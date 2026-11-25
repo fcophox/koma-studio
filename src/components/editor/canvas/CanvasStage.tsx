@@ -167,6 +167,15 @@ export function CanvasStage() {
 
   // ── Pan: Espacio + arrastrar, o botón central ──────────────
   const handlePointerDownCapture = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Al tocar el lienzo, el teclado pasa a la página: se suelta el foco de
+    // sliders/inputs del panel lateral y cualquier texto seleccionado, para que
+    // Cmd+C / Cmd+V / Cmd+Z actúen sobre la viñeta. (Salvo en la barra de
+    // acciones o el editor de texto, que tienen su propio foco.)
+    const target = e.target as HTMLElement;
+    if (!target.closest("button, textarea, input, [role=toolbar]")) {
+      window.getSelection()?.removeAllRanges();
+      containerRef.current?.focus({ preventScroll: true });
+    }
     if (!(isSpaceHeld || e.button === 1)) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -328,7 +337,9 @@ export function CanvasStage() {
   return (
     <div
       ref={containerRef}
-      className="workspace-bg absolute inset-0 overflow-hidden"
+      className="workspace-bg absolute inset-0 overflow-hidden outline-none"
+      tabIndex={-1}
+      aria-label="Lienzo de la página"
       style={{ cursor }}
       onPointerDownCapture={handlePointerDownCapture}
       onPointerMove={handlePointerMove}

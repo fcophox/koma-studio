@@ -54,6 +54,8 @@ const docOf = (p: Project): DocState => ({
 export interface Toast {
   id: number;
   message: string;
+  /** Milisegundos visible (por defecto 7000). */
+  duration?: number;
   actionLabel?: string;
   onAction?: () => void;
 }

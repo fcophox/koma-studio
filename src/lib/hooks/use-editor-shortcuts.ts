@@ -9,7 +9,7 @@ import {
   pasteIntoSelectedPanel,
 } from "../panel-clipboard";
 import { useEditorStore } from "../store/editor-store";
-import { isModalOpen, isTypingTarget } from "../utils";
+import { isModalOpen, isTextEntryTarget, isTypingTarget } from "../utils";
 
 /**
  * Atajos globales del editor. Zoom/pan (Espacio, Ctrl+0, rueda) viven en el
@@ -49,9 +49,12 @@ export function useEditorShortcuts(isEnabled: boolean) {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target) || isModalOpen()) return;
-      const store = useEditorStore.getState();
+      if (isModalOpen()) return;
       const mod = e.metaKey || e.ctrlKey;
+      // Con Cmd/Ctrl solo se cede el atajo a campos de texto; un slider con foco
+      // (p. ej. tras ajustar el zoom) no debe bloquear copiar/pegar/deshacer.
+      if (mod ? isTextEntryTarget(e.target) : isTypingTarget(e.target)) return;
+      const store = useEditorStore.getState();
       const key = e.key.toLowerCase();
 
       // Copiar/cortar/pegar viñetas: lo resuelven los eventos nativos de abajo;
@@ -118,7 +121,7 @@ export function useEditorShortcuts(isEnabled: boolean) {
     // ── Copiar / cortar / pegar viñetas (eventos nativos del portapapeles) ──
     let clipboardHandled = false;
     const isOwnClipboardContext = () => {
-      if (isModalOpen() || isTypingTarget(document.activeElement)) return false;
+      if (isModalOpen() || isTextEntryTarget(document.activeElement)) return false;
       // Si hay texto seleccionado en la interfaz, que Cmd+C copie ese texto.
       return !window.getSelection()?.toString();
     };
