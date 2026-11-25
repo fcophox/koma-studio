@@ -12,6 +12,7 @@ import { EditorCanvas } from "./canvas/EditorCanvas";
 import { EditorHeader } from "./EditorHeader";
 import { PagesSidebar } from "./PagesSidebar";
 import { ToolsSidebar } from "./ToolsSidebar";
+import { UndoToast } from "./UndoToast";
 
 type Status = "loading" | "ready" | "not-found";
 
@@ -75,6 +76,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         </main>
         <ToolsSidebar />
       </div>
+      <UndoToast />
     </div>
   );
 }

@@ -47,7 +47,7 @@ src/
 
 | Acción | Atajo |
 | --- | --- |
-| Deshacer / Rehacer (por página) | `Ctrl/Cmd+Z` · `Ctrl/Cmd+Y` o `Ctrl/Cmd+Shift+Z` |
+| Deshacer / Rehacer (todo el capítulo: también borrar, añadir, duplicar y mover páginas) | `Ctrl/Cmd+Z` · `Ctrl/Cmd+Y` o `Ctrl/Cmd+Shift+Z` |
 | Borrar selección | `Supr` / `Backspace` |
 | Mover lienzo | `Espacio` + arrastrar, o botón central |
 | Zoom | rueda · `Ctrl/Cmd +/−` · `Ctrl/Cmd 0` encajar |

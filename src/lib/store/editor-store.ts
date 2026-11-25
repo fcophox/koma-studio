@@ -17,14 +17,45 @@ import type {
   Selection,
 } from "../types";
 
-const HISTORY_LIMIT = 100;
+const HISTORY_LIMIT = 200;
 const COALESCE_MS = 600;
 
-interface PageHistory {
-  past: Page[];
-  future: Page[];
+/**
+ * Parte del proyecto que entra en deshacer/rehacer: páginas y su maquetación.
+ * Título, capítulo y personajes quedan fuera (se editan en formularios con su
+ * propio deshacer de texto, y borrar un personaje elimina archivos).
+ */
+type DocState = Pick<Project, "pages" | "numbering" | "defaultStyle" | "readingDirection" | "formatId">;
+
+interface HistoryEntry {
+  doc: DocState;
+  /** Página a mostrar al deshacer/rehacer este paso. */
+  focusPageId: string | null;
+  label: string;
+}
+
+interface History {
+  past: HistoryEntry[];
+  future: HistoryEntry[];
   lastKey?: string;
   lastAt?: number;
+}
+
+const EMPTY_HISTORY: History = { past: [], future: [] };
+
+const docOf = (p: Project): DocState => ({
+  pages: p.pages,
+  numbering: p.numbering,
+  defaultStyle: p.defaultStyle,
+  readingDirection: p.readingDirection,
+  formatId: p.formatId,
+});
+
+export interface Toast {
+  id: number;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 /**
@@ -50,6 +81,8 @@ export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 export interface UpdateOptions {
   /** Registrar el estado previo en el historial (por defecto true). */
   record?: boolean;
+  /** Descripción del paso ("Eliminar página 03"), visible en los tooltips. */
+  label?: string;
   /**
    * Cambios consecutivos con la misma clave en menos de 600 ms se agrupan en
    * un único paso de deshacer (sliders, arrastres, nudges con teclado…).
@@ -68,7 +101,8 @@ export interface EditorState {
   /** Elemento (globo / onomatopeya) cuyo texto se edita en el lienzo. */
   editingTextId: string | null;
   panelClipboard: PanelClipboard | null;
-  history: Record<string, PageHistory>;
+  history: History;
+  toast: Toast | null;
   saveStatus: SaveStatus;
   lastSavedAt: number | null;
 
@@ -118,10 +152,12 @@ export interface EditorState {
 
   undo: () => void;
   redo: () => void;
+  showToast: (toast: Omit<Toast, "id">) => void;
+  dismissToast: () => void;
 
   setSaveStatus: (status: SaveStatus, savedAt?: number) => void;
 
-  // Personajes (nivel proyecto: se autoguardan, fuera del deshacer por página)
+  // Personajes (nivel proyecto: se autoguardan, fuera del deshacer)
   addCharacter: (character: Character) => void;
   updateCharacter: (characterId: string, patch: Partial<Omit<Character, "id" | "images">>) => void;
   deleteCharacter: (characterId: string) => void;
@@ -138,6 +174,42 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     set({ project: { ...fn(project), updatedAt: Date.now() } });
   };
 
+  /** Mutación registrada en el historial global (deshacer/rehacer). */
+  const commit = (
+    fn: (p: Project) => Project,
+    opts: { label: string; focusPageId?: string | null; coalesceKey?: string; record?: boolean },
+  ) => {
+    const { project, history, activePageId } = get();
+    if (!project) return;
+    const next = fn(project);
+    if (next === project) return;
+
+    let nextHistory = history;
+    if (opts.record !== false) {
+      const now = Date.now();
+      const isCoalesced =
+        !!opts.coalesceKey && history.lastKey === opts.coalesceKey && now - (history.lastAt ?? 0) < COALESCE_MS;
+      const entry: HistoryEntry = {
+        doc: docOf(project),
+        focusPageId: opts.focusPageId === undefined ? activePageId : opts.focusPageId,
+        label: opts.label,
+      };
+      nextHistory = {
+        past: isCoalesced ? history.past : [...history.past, entry].slice(-HISTORY_LIMIT),
+        future: [],
+        lastKey: opts.coalesceKey,
+        lastAt: now,
+      };
+    }
+    set({ project: { ...next, updatedAt: Date.now() }, history: nextHistory });
+  };
+
+  /** Página a mostrar tras deshacer/rehacer: la afectada, la actual o la primera. */
+  const pickActive = (p: Project, preferred: string | null, current: string | null) =>
+    [preferred, current].find((id) => id && p.pages.some((pg) => pg.id === id)) ?? p.pages[0]?.id ?? null;
+
+  let toastSeq = 0;
+
   return {
     project: null,
     activePageId: null,
@@ -145,7 +217,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     editingPanelId: null,
     editingTextId: null,
     panelClipboard: null,
-    history: {},
+    history: EMPTY_HISTORY,
+    toast: null,
     saveStatus: "idle",
     lastSavedAt: null,
 
@@ -156,7 +229,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         selection: null,
         editingPanelId: null,
         editingTextId: null,
-        history: {},
+        history: EMPTY_HISTORY,
+        toast: null,
         saveStatus: "saved",
         lastSavedAt: project.updatedAt,
       }),
@@ -168,14 +242,19 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         selection: null,
         editingPanelId: null,
         editingTextId: null,
-        history: {},
+        history: EMPTY_HISTORY,
+        toast: null,
         saveStatus: "idle",
       }),
 
-    updateMeta: (patch) => mutate((p) => ({ ...p, ...patch })),
+    updateMeta: (patch) =>
+      // El formato cambia la maquetación: va al historial. El resto (título…) no.
+      patch.formatId !== undefined
+        ? commit((p) => ({ ...p, ...patch }), { label: "Cambiar formato" })
+        : mutate((p) => ({ ...p, ...patch })),
 
     setReadingDirection: (dir) =>
-      mutate((p) => {
+      commit((p) => {
         if (p.readingDirection === dir) return p;
         // Espejar la geometría existente: la viñeta 1 pasa al lado de inicio de lectura.
         const pages = p.pages.map((pg) => ({
@@ -183,9 +262,13 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           panels: pg.panels.map((pn) => ({ ...pn, points: mirrorNormalized(pn.points) })),
         }));
         return { ...p, readingDirection: dir, pages };
-      }),
+      }, { label: "Cambiar dirección de lectura" }),
 
-    setNumbering: (patch) => mutate((p) => ({ ...p, numbering: { ...p.numbering, ...patch } })),
+    setNumbering: (patch) =>
+      commit((p) => ({ ...p, numbering: { ...p.numbering, ...patch } }), {
+        label: "Numeración",
+        coalesceKey: `numbering:${Object.keys(patch).join(",")}`,
+      }),
 
     setActivePage: (pageId) =>
       set({ activePageId: pageId, selection: null, editingPanelId: null, editingTextId: null }),
@@ -198,7 +281,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const idx = project.pages.findIndex((pg) => pg.id === anchor);
       const pages = [...project.pages];
       pages.splice(idx === -1 ? pages.length : idx + 1, 0, page);
-      mutate((p) => ({ ...p, pages }));
+      commit((p) => ({ ...p, pages }), { label: "Añadir página" });
       set({ activePageId: page.id, selection: null });
     },
 
@@ -210,76 +293,64 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const copy = clonePage(project.pages[idx]);
       const pages = [...project.pages];
       pages.splice(idx + 1, 0, copy);
-      mutate((p) => ({ ...p, pages }));
+      commit((p) => ({ ...p, pages }), { label: "Duplicar página", focusPageId: pageId });
       set({ activePageId: copy.id, selection: null });
     },
 
     deletePage: (pageId) => {
-      const { project, activePageId, history } = get();
+      const { project, activePageId } = get();
       if (!project || project.pages.length <= 1) return;
       const idx = project.pages.findIndex((pg) => pg.id === pageId);
       if (idx === -1) return;
       const pages = project.pages.filter((pg) => pg.id !== pageId);
-      const nextActive =
-        activePageId === pageId ? pages[Math.min(idx, pages.length - 1)].id : activePageId;
-      const { [pageId]: _removed, ...restHistory } = history;
-      void _removed;
-      mutate((p) => ({ ...p, pages }));
-      set({ activePageId: nextActive, selection: null, history: restHistory });
+      const nextActive = activePageId === pageId ? pages[Math.min(idx, pages.length - 1)].id : activePageId;
+      const label = `Eliminar página ${String(project.numbering.startAt + idx).padStart(2, "0")}`;
+      // focusPageId = la borrada: al deshacer se vuelve a mostrar.
+      commit((p) => ({ ...p, pages }), { label, focusPageId: pageId });
+      set({ activePageId: nextActive, selection: null, editingPanelId: null, editingTextId: null });
+      get().showToast({ message: `${label.replace("Eliminar", "Eliminaste la")}`, actionLabel: "Deshacer", onAction: () => get().undo() });
     },
 
     movePage: (from, to) =>
-      mutate((p) => {
-        if (from === to || from < 0 || to < 0 || from >= p.pages.length || to >= p.pages.length) return p;
-        const pages = [...p.pages];
-        const [moved] = pages.splice(from, 1);
-        pages.splice(to, 0, moved);
-        return { ...p, pages };
-      }),
+      commit(
+        (p) => {
+          if (from === to || from < 0 || to < 0 || from >= p.pages.length || to >= p.pages.length) return p;
+          const pages = [...p.pages];
+          const [moved] = pages.splice(from, 1);
+          pages.splice(to, 0, moved);
+          return { ...p, pages };
+        },
+        { label: "Mover página", focusPageId: get().project?.pages[from]?.id ?? null },
+      ),
 
-    updatePage: (pageId, updater, opts = {}) => {
-      const { project, history } = get();
-      if (!project) return;
-      const idx = project.pages.findIndex((pg) => pg.id === pageId);
-      if (idx === -1) return;
-      const prev = project.pages[idx];
-      const next = updater(prev);
-      if (next === prev) return;
-
-      const record = opts.record ?? true;
-      let nextHistory = history;
-      if (record) {
-        const h = history[pageId] ?? { past: [], future: [] };
-        const now = Date.now();
-        const coalesce =
-          !!opts.coalesceKey && h.lastKey === opts.coalesceKey && now - (h.lastAt ?? 0) < COALESCE_MS;
-        nextHistory = {
-          ...history,
-          [pageId]: {
-            past: coalesce ? h.past : [...h.past, prev].slice(-HISTORY_LIMIT),
-            future: [],
-            lastKey: opts.coalesceKey,
-            lastAt: now,
-          },
-        };
-      }
-
-      const pages = [...project.pages];
-      pages[idx] = next;
-      set({ project: { ...project, pages, updatedAt: Date.now() }, history: nextHistory });
-    },
+    updatePage: (pageId, updater, opts = {}) =>
+      commit(
+        (p) => {
+          const idx = p.pages.findIndex((pg) => pg.id === pageId);
+          if (idx === -1) return p;
+          const next = updater(p.pages[idx]);
+          if (next === p.pages[idx]) return p;
+          const pages = [...p.pages];
+          pages[idx] = next;
+          return { ...p, pages };
+        },
+        { label: opts.label ?? "Editar página", focusPageId: pageId, coalesceKey: opts.coalesceKey, record: opts.record },
+      ),
 
     applyTemplate: (pageId, templateId) => {
       const { project } = get();
       if (!project) return;
-      get().updatePage(pageId, (pg) =>
-        pg.templateId === templateId ? pg : applyTemplateToPage(pg, templateId, project.readingDirection),
+      get().updatePage(
+        pageId,
+        (pg) => (pg.templateId === templateId ? pg : applyTemplateToPage(pg, templateId, project.readingDirection)),
+        { label: "Cambiar plantilla" },
       );
       set({ selection: null });
     },
 
     setPageStyle: (pageId, patch, coalesceKey) =>
       get().updatePage(pageId, (pg) => ({ ...pg, style: { ...pg.style, ...patch } }), {
+        label: "Estilo de viñetas",
         coalesceKey: coalesceKey ?? `style:${Object.keys(patch).join(",")}`,
       }),
 
@@ -287,11 +358,15 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const { project } = get();
       const source = project?.pages.find((pg) => pg.id === pageId);
       if (!project || !source) return;
-      // Cada página registra su propio paso de historial.
-      project.pages.forEach((pg) => {
-        if (pg.id !== pageId) get().updatePage(pg.id, (p) => ({ ...p, style: { ...source.style } }));
-      });
-      mutate((p) => ({ ...p, defaultStyle: { ...source.style } }));
+      // Un único paso de deshacer para todas las páginas.
+      commit(
+        (p) => ({
+          ...p,
+          defaultStyle: { ...source.style },
+          pages: p.pages.map((pg) => (pg.id === pageId ? pg : { ...pg, style: { ...source.style } })),
+        }),
+        { label: "Aplicar estilo a todas", focusPageId: pageId },
+      );
     },
 
     select: (selection) =>
@@ -326,11 +401,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         },
       });
       if (mode === "cut") {
-        // Cortar vacía la viñeta ya (se puede deshacer con Cmd+Z en esa página).
-        get().updatePage(pageId, (pg) => ({
-          ...pg,
-          panels: pg.panels.map((pn) => (pn.id === panelId ? { ...pn, image: null } : pn)),
-        }));
+        // Cortar vacía la viñeta ya (se puede deshacer con Cmd+Z).
+        get().updatePage(
+          pageId,
+          (pg) => ({ ...pg, panels: pg.panels.map((pn) => (pn.id === panelId ? { ...pn, image: null } : pn)) }),
+          { label: "Cortar imagen" },
+        );
         if (get().editingPanelId === panelId) set({ editingPanelId: null });
       }
       return true;
@@ -359,7 +435,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
               }
             : pn,
         ),
-      }));
+      }), { label: "Pegar imagen" });
       set({
         selection: { kind: "panel", pageId, panelId },
         editingPanelId: null,
@@ -382,7 +458,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     },
 
     addElement: (pageId, element) => {
-      get().updatePage(pageId, (pg) => ({ ...pg, elements: [...pg.elements, element] }));
+      get().updatePage(pageId, (pg) => ({ ...pg, elements: [...pg.elements, element] }), {
+        label: element.type === "bubble" ? "Añadir globo" : "Añadir onomatopeya",
+      });
       set({ selection: { kind: "element", pageId, elementId: element.id }, editingPanelId: null, editingTextId: null });
     },
 
@@ -393,7 +471,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           ...pg,
           elements: pg.elements.map((el) => (el.id === elementId ? ({ ...el, ...patch } as CanvasElement) : el)),
         }),
-        { coalesceKey: coalesceKey === null ? undefined : (coalesceKey ?? `el:${elementId}:${Object.keys(patch).join(",")}`) },
+        {
+          label: "Editar elemento",
+          coalesceKey: coalesceKey === null ? undefined : (coalesceKey ?? `el:${elementId}:${Object.keys(patch).join(",")}`),
+        },
       ),
 
     reorderElement: (pageId, elementId, to) =>
@@ -408,7 +489,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         const [moved] = elements.splice(idx, 1);
         elements.splice(target, 0, moved);
         return { ...pg, elements };
-      }),
+      }, { label: "Ordenar capas" }),
 
     duplicateElement: (pageId, elementId) => {
       const page = get().project?.pages.find((pg) => pg.id === pageId);
@@ -438,7 +519,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
                   : null,
               },
         ),
-      }));
+      }), { label: assetId ? "Colocar imagen" : "Quitar imagen" });
       if (!assetId && get().editingPanelId === panelId) set({ editingPanelId: null });
     },
 
@@ -452,6 +533,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           ),
         }),
         {
+          label: "Encuadrar imagen",
           coalesceKey:
             coalesceKey === null ? undefined : (coalesceKey ?? `image:${panelId}:${Object.keys(patch).join(",")}`),
         },
@@ -464,7 +546,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         get().updatePage(selection.pageId, (pg) => ({
           ...pg,
           elements: pg.elements.filter((el) => el.id !== selection.elementId),
-        }));
+        }), { label: "Eliminar elemento" });
         set({ selection: null, editingTextId: null });
         return;
       }
@@ -476,51 +558,45 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           ...pg,
           panels: pg.panels.map((pn) => (pn.id === selection.panelId ? { ...pn, image: null } : pn)),
         };
-      });
+      }, { label: "Quitar imagen" });
     },
 
     undo: () => {
-      const { project, activePageId, history } = get();
-      if (!project || !activePageId) return;
-      const h = history[activePageId];
-      if (!h?.past.length) return;
-      const idx = project.pages.findIndex((pg) => pg.id === activePageId);
-      if (idx === -1) return;
-      const current = project.pages[idx];
-      const previous = h.past[h.past.length - 1];
-      const pages = [...project.pages];
-      pages[idx] = previous;
+      const { project, history, activePageId } = get();
+      const entry = history.past[history.past.length - 1];
+      if (!project || !entry) return;
+      const restored = { ...project, ...entry.doc, updatedAt: Date.now() };
       set({
-        project: { ...project, pages, updatedAt: Date.now() },
+        project: restored,
+        activePageId: pickActive(restored, entry.focusPageId, activePageId),
         selection: null,
         editingPanelId: null,
         editingTextId: null,
+        toast: null,
         history: {
-          ...history,
-          [activePageId]: { past: h.past.slice(0, -1), future: [current, ...h.future] },
+          past: history.past.slice(0, -1),
+          future: [{ ...entry, doc: docOf(project) }, ...history.future],
         },
       });
     },
 
     redo: () => {
-      const { project, activePageId, history } = get();
-      if (!project || !activePageId) return;
-      const h = history[activePageId];
-      if (!h?.future.length) return;
-      const idx = project.pages.findIndex((pg) => pg.id === activePageId);
-      if (idx === -1) return;
-      const current = project.pages[idx];
-      const [next, ...rest] = h.future;
-      const pages = [...project.pages];
-      pages[idx] = next;
+      const { project, history, activePageId } = get();
+      const [entry, ...rest] = history.future;
+      if (!project || !entry) return;
+      const restored = { ...project, ...entry.doc, updatedAt: Date.now() };
       set({
-        project: { ...project, pages, updatedAt: Date.now() },
+        project: restored,
+        activePageId: pickActive(restored, entry.focusPageId, activePageId),
         selection: null,
         editingPanelId: null,
         editingTextId: null,
-        history: { ...history, [activePageId]: { past: [...h.past, current], future: rest } },
+        history: { past: [...history.past, { ...entry, doc: docOf(project) }], future: rest },
       });
     },
+
+    showToast: (toast) => set({ toast: { ...toast, id: ++toastSeq } }),
+    dismissToast: () => set({ toast: null }),
 
     addCharacter: (character) => mutate((p) => ({ ...p, characters: [...p.characters, character] })),
 
@@ -570,8 +646,11 @@ export const selectActivePage = (s: EditorState): Page | null =>
 export const selectActivePageIndex = (s: EditorState): number =>
   s.project?.pages.findIndex((pg) => pg.id === s.activePageId) ?? -1;
 
-export const selectCanUndo = (s: EditorState) =>
-  !!s.activePageId && (s.history[s.activePageId]?.past.length ?? 0) > 0;
+export const selectCanUndo = (s: EditorState) => s.history.past.length > 0;
 
-export const selectCanRedo = (s: EditorState) =>
-  !!s.activePageId && (s.history[s.activePageId]?.future.length ?? 0) > 0;
+export const selectCanRedo = (s: EditorState) => s.history.future.length > 0;
+
+/** Descripción del próximo paso a deshacer / rehacer (para tooltips). */
+export const selectUndoLabel = (s: EditorState) => s.history.past[s.history.past.length - 1]?.label ?? null;
+
+export const selectRedoLabel = (s: EditorState) => s.history.future[0]?.label ?? null;

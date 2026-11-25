@@ -5,7 +5,14 @@ import { AlertTriangle, Check, Download, FolderSync, Loader2, Redo2, Settings2, 
 import { Logo } from "@/components/shared/Logo";
 import { Button, IconButton } from "@/components/ui/Button";
 import { getFormat } from "@/lib/formats";
-import { selectCanRedo, selectCanUndo, useEditorStore, type SaveStatus } from "@/lib/store/editor-store";
+import {
+  selectCanRedo,
+  selectCanUndo,
+  selectRedoLabel,
+  selectUndoLabel,
+  useEditorStore,
+  type SaveStatus,
+} from "@/lib/store/editor-store";
 import { formatChapter } from "@/lib/utils";
 import { ExportDialog } from "./ExportDialog";
 import { PackageDialog } from "./PackageDialog";
@@ -44,6 +51,8 @@ export function EditorHeader() {
   const canRedo = useEditorStore(selectCanRedo);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  const undoLabel = useEditorStore(selectUndoLabel);
+  const redoLabel = useEditorStore(selectRedoLabel);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isPackageOpen, setIsPackageOpen] = useState(false);
@@ -78,10 +87,10 @@ export function EditorHeader() {
       <div className="ml-auto flex items-center gap-1">
         <SaveIndicator status={saveStatus} />
         <div className="mx-2 h-5 w-px bg-line" />
-        <IconButton label="Deshacer (Ctrl+Z)" onClick={undo} disabled={!canUndo}>
+        <IconButton label={undoLabel ? `Deshacer: ${undoLabel} (⌘Z)` : "Deshacer (⌘Z)"} onClick={undo} disabled={!canUndo}>
           <Undo2 className="size-4" />
         </IconButton>
-        <IconButton label="Rehacer (Ctrl+Y)" onClick={redo} disabled={!canRedo}>
+        <IconButton label={redoLabel ? `Rehacer: ${redoLabel} (⇧⌘Z)` : "Rehacer (⇧⌘Z)"} onClick={redo} disabled={!canRedo}>
           <Redo2 className="size-4" />
         </IconButton>
         <IconButton label="Ajustes del proyecto" onClick={() => setIsSettingsOpen(true)}>
