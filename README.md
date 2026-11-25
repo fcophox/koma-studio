@@ -52,6 +52,7 @@ src/
 | Mover lienzo | `Espacio` + arrastrar, o botón central |
 | Zoom | rueda · `Ctrl/Cmd +/−` · `Ctrl/Cmd 0` encajar |
 | Cambiar de página | `RePág` / `AvPág` |
+| Reordenar páginas | arrastra la miniatura arriba/abajo · teclado: asa ⋮⋮ + `Espacio`, flechas, `Espacio` |
 | Encuadrar imagen de la viñeta | doble clic o `Enter` · `Esc` para salir |
 | Mover imagen dentro de la viñeta | flechas (1u) · `Shift` + flechas (10u) |
 | Quitar imagen de la viñeta | `Supr` con la viñeta seleccionada |

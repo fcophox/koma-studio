@@ -9,6 +9,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type Modifier,
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -20,6 +21,9 @@ import { useEditorStore } from "@/lib/store/editor-store";
 import type { Page, PageFormat, PageNumbering, ReadingDirection } from "@/lib/types";
 import { cn, formatPageNumber } from "@/lib/utils";
 import { TemplatePickerDialog } from "./TemplatePickerDialog";
+
+/** Solo arriba/abajo: la lista es vertical. */
+const restrictToVerticalAxis: Modifier = ({ transform }) => ({ ...transform, x: 0 });
 
 type ThumbProps = {
   page: Page;
@@ -46,7 +50,7 @@ function SortablePageThumb({ page, index, format, numbering, direction, isActive
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn("group relative flex gap-2", isDragging && "z-10 opacity-80")}
+      className={cn("group relative flex gap-2", isDragging && "z-20")}
     >
       <div className="flex w-5 flex-col items-center pt-1">
         <span className={cn("text-[11px] font-medium tabular-nums", isActive ? "text-accent" : "text-zinc-500")}>
@@ -64,16 +68,20 @@ function SortablePageThumb({ page, index, format, numbering, direction, isActive
         </button>
       </div>
 
+      {/* Toda la miniatura se arrastra con el ratón; un clic sin mover la selecciona.
+          El teclado sigue usando el asa (Espacio para tomar, flechas, Espacio para soltar). */}
       <button
         type="button"
         onClick={() => setActivePage(page.id)}
+        onPointerDown={listeners?.onPointerDown as React.PointerEventHandler<HTMLButtonElement> | undefined}
         aria-current={isActive ? "page" : undefined}
         aria-label={`Página ${formatPageNumber(printed)}`}
+        title="Clic para abrir · arrastra para reordenar"
         className={cn(
-          "relative flex-1 overflow-hidden rounded-[4px] ring-offset-2 ring-offset-surface-1 transition-shadow duration-150",
+          "relative flex-1 cursor-grab touch-none overflow-hidden rounded-[4px] ring-offset-2 ring-offset-surface-1 transition-[box-shadow,transform] duration-150 active:cursor-grabbing",
           isTall && "aspect-[1/2]",
           isActive ? "ring-2 ring-accent" : "ring-1 ring-line hover:ring-line-strong",
-          isDragging && "shadow-xl shadow-black/60",
+          isDragging && "scale-[1.04] cursor-grabbing shadow-2xl shadow-black/70 ring-2 ring-accent",
         )}
       >
         <PagePreview
@@ -89,7 +97,7 @@ function SortablePageThumb({ page, index, format, numbering, direction, isActive
         />
       </button>
 
-      <div className="absolute top-1 right-1 flex flex-col gap-0.5 rounded-md border border-line bg-surface-1/95 p-0.5 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+      <div className={cn("absolute top-1 right-1 flex flex-col gap-0.5 rounded-md border border-line bg-surface-1/95 p-0.5 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100", isDragging && "hidden")}>
         <IconButton label="Duplicar página" size="sm" onClick={() => duplicatePage(page.id)}>
           <Copy className="size-3.5" />
         </IconButton>
@@ -112,10 +120,12 @@ export function PagesSidebar() {
   const activePageId = useEditorStore((s) => s.activePageId);
   const movePage = useEditorStore((s) => s.movePage);
   const addPage = useEditorStore((s) => s.addPage);
+  const setActivePage = useEditorStore((s) => s.setActivePage);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    // 6 px de margen: por debajo es un clic (seleccionar), por encima empieza el arrastre.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -141,7 +151,13 @@ export function PagesSidebar() {
       </div>
 
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragStart={({ active }) => setActivePage(String(active.id))}
+          onDragEnd={handleDragEnd}
+        >
           <SortableContext items={project.pages.map((p) => p.id)} strategy={verticalListSortingStrategy}>
             <ol className="flex flex-col gap-3 pt-1">
               {project.pages.map((page, i) => (
