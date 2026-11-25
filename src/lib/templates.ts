@@ -117,6 +117,31 @@ export const PANEL_TEMPLATES: PanelTemplate[] = [
     category: "dynamic",
     panels: [rect(0, 0, 0.55, 1), rect(0.55, 0, 0.45, 1 / 3), rect(0.55, 1 / 3, 0.45, 1 / 3), rect(0.55, 2 / 3, 0.45, 1 / 3)],
   },
+  {
+    id: "hero-strip",
+    name: "Grande + franja",
+    category: "dynamic",
+    panels: [rect(0, 0, 1, 0.67), rect(0, 0.67, 1, 0.33)],
+  },
+  {
+    id: "hero-two",
+    name: "Grande + 2 abajo",
+    category: "dynamic",
+    panels: [rect(0, 0, 1, 0.67), rect(0, 0.67, 0.5, 0.33), rect(0.5, 0.67, 0.5, 0.33)],
+  },
+  {
+    // Se lee por columnas: primero la columna izquierda, luego la grande.
+    id: "stack-hero",
+    name: "2 apiladas + grande",
+    category: "dynamic",
+    panels: [rect(0, 0, 0.43, 0.5), rect(0, 0.5, 0.43, 0.5), rect(0.43, 0, 0.57, 1)],
+  },
+  {
+    id: "hero-stack",
+    name: "Grande + 2 apiladas",
+    category: "dynamic",
+    panels: [rect(0, 0, 0.57, 1), rect(0.57, 0, 0.43, 0.5), rect(0.57, 0.5, 0.43, 0.5)],
+  },
 
   // ── Acción / manga ─────────────────────────────────────────
   {
