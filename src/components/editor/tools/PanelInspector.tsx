@@ -1,11 +1,23 @@
 "use client";
 
 import { useRef } from "react";
-import { Crop, FlipHorizontal2, ImageOff, ImagePlus, Maximize2, Minimize2, RotateCcw } from "lucide-react";
+import {
+  ClipboardPaste,
+  Copy,
+  Crop,
+  FlipHorizontal2,
+  ImageOff,
+  ImagePlus,
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  Scissors,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { SliderRow } from "@/components/ui/Fields";
 import { useAssetImage } from "@/lib/hooks/use-asset-image";
 import { containScale, panelPolygon } from "@/lib/geometry";
+import { copySelectedPanelFromButton, pasteIntoSelectedPanel } from "@/lib/panel-clipboard";
 import { ACCEPT_ATTR, useAssetStore } from "@/lib/store/asset-store";
 import { useEditorStore } from "@/lib/store/editor-store";
 import type { Page, PageFormat, PanelSlot } from "@/lib/types";
@@ -27,6 +39,7 @@ export function PanelInspector({ page, panel, index, format }: Props) {
   const importFiles = useAssetStore((s) => s.importFiles);
   const assetMeta = useAssetStore((s) => s.assets.find((a) => a.id === panel.image?.assetId));
   const image = useAssetImage(panel.image?.assetId);
+  const hasClipboard = useEditorStore((s) => !!s.panelClipboard);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,6 +60,16 @@ export function PanelInspector({ page, panel, index, format }: Props) {
           Viñeta {index + 1} vacía. Arrastra una imagen desde tu equipo o desde la pestaña Imágenes, o haz doble clic en
           ella.
         </p>
+        {hasClipboard && (
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<ClipboardPaste className="size-3.5" />}
+            onClick={() => pasteIntoSelectedPanel()}
+          >
+            Pegar imagen copiada (⌘V)
+          </Button>
+        )}
         <Button size="sm" icon={<ImagePlus className="size-3.5" />} onClick={() => inputRef.current?.click()}>
           Elegir archivo…
         </Button>
@@ -90,6 +113,24 @@ export function PanelInspector({ page, panel, index, format }: Props) {
             </p>
           )}
         </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <Button size="sm" icon={<Copy className="size-3.5" />} onClick={() => copySelectedPanelFromButton("copy")} title="⌘C">
+          Copiar
+        </Button>
+        <Button size="sm" icon={<Scissors className="size-3.5" />} onClick={() => copySelectedPanelFromButton("cut")} title="⌘X">
+          Cortar
+        </Button>
+        <Button
+          size="sm"
+          icon={<ClipboardPaste className="size-3.5" />}
+          onClick={() => pasteIntoSelectedPanel()}
+          disabled={!hasClipboard}
+          title="Reemplaza la imagen (⌘V)"
+        >
+          Pegar
+        </Button>
       </div>
 
       <Button

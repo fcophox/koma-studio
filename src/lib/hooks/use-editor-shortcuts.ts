@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
+import {
+  CLIPBOARD_MARKER,
+  copySelectedPanel,
+  copySelectedPanelFromButton,
+  pasteFilesIntoSelectedPanel,
+  pasteIntoSelectedPanel,
+} from "../panel-clipboard";
 import { useEditorStore } from "../store/editor-store";
 import { isModalOpen, isTypingTarget } from "../utils";
 
@@ -47,6 +54,21 @@ export function useEditorShortcuts(isEnabled: boolean) {
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
 
+      // Copiar/cortar/pegar viñetas: lo resuelven los eventos nativos de abajo;
+      // si el navegador no los dispara (p. ej. Safari sin texto seleccionado),
+      // este respaldo actúa en el siguiente tick.
+      if (mod && !e.altKey && (key === "c" || key === "x" || key === "v") && store.selection?.kind === "panel") {
+        if (window.getSelection()?.toString()) return;
+        clipboardHandled = false;
+        const mode = key === "x" ? "cut" : "copy";
+        setTimeout(() => {
+          if (clipboardHandled) return;
+          if (key === "v") pasteIntoSelectedPanel();
+          else copySelectedPanelFromButton(mode);
+        }, 60);
+        return;
+      }
+
       if (mod && key === "z" && !e.shiftKey) {
         e.preventDefault();
         store.undo();
@@ -60,7 +82,8 @@ export function useEditorShortcuts(isEnabled: boolean) {
         }
       } else if (key === "escape") {
         if (store.editingPanelId) store.setEditingPanel(null);
-        else store.select(null);
+        else if (store.selection) store.select(null);
+        else store.clearPanelClipboard(); // segundo Esc: olvidar lo copiado
       } else if (store.selection?.kind === "element" && handleElementKey(e, key, mod)) {
         // Atajos de globos / onomatopeyas resueltos en handleElementKey.
       } else if (key === "enter" && store.selection?.kind === "panel" && !(e.target instanceof HTMLButtonElement)) {
@@ -92,7 +115,48 @@ export function useEditorShortcuts(isEnabled: boolean) {
       }
     };
 
+    // ── Copiar / cortar / pegar viñetas (eventos nativos del portapapeles) ──
+    let clipboardHandled = false;
+    const isOwnClipboardContext = () => {
+      if (isModalOpen() || isTypingTarget(document.activeElement)) return false;
+      // Si hay texto seleccionado en la interfaz, que Cmd+C copie ese texto.
+      return !window.getSelection()?.toString();
+    };
+
+    const handleCopyOrCut = (e: ClipboardEvent) => {
+      if (!isOwnClipboardContext()) return;
+      if (useEditorStore.getState().selection?.kind !== "panel") return;
+      clipboardHandled = true;
+      const marker = copySelectedPanel(e.type === "cut" ? "cut" : "copy");
+      if (!marker) return;
+      e.preventDefault();
+      e.clipboardData?.setData("text/plain", marker);
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!isOwnClipboardContext()) return;
+      if (useEditorStore.getState().selection?.kind !== "panel") return;
+      clipboardHandled = true;
+      const files = Array.from(e.clipboardData?.files ?? []);
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      // Una imagen copiada fuera de Koma (más reciente que nuestro marcador) tiene prioridad.
+      if (files.length && !text.startsWith(CLIPBOARD_MARKER)) {
+        e.preventDefault();
+        void pasteFilesIntoSelectedPanel(files);
+        return;
+      }
+      if (pasteIntoSelectedPanel()) e.preventDefault();
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("copy", handleCopyOrCut);
+    window.addEventListener("cut", handleCopyOrCut);
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("copy", handleCopyOrCut);
+      window.removeEventListener("cut", handleCopyOrCut);
+      window.removeEventListener("paste", handlePaste);
+    };
   }, [isEnabled]);
 }

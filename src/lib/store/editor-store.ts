@@ -2,7 +2,8 @@
 
 import { create } from "zustand";
 import { applyTemplateToPage, cloneElement, clonePage, createPage } from "../factory";
-import { mirrorNormalized } from "../geometry";
+import { getFormat } from "../formats";
+import { boundingBox, mirrorNormalized, panelPolygon } from "../geometry";
 import type {
   CanvasElement,
   Character,
@@ -24,6 +25,24 @@ interface PageHistory {
   future: Page[];
   lastKey?: string;
   lastAt?: number;
+}
+
+/**
+ * Imagen copiada/cortada de una viñeta. El desplazamiento se guarda relativo
+ * al tamaño de la viñeta de origen, así al pegarla en otra (aunque mida
+ * distinto) queda en la misma posición proporcional.
+ */
+export interface PanelClipboard {
+  id: string;
+  mode: "copy" | "cut";
+  assetId: string;
+  offsetXRatio: number;
+  offsetYRatio: number;
+  scale: number;
+  rotation: number;
+  flipX: boolean;
+  sourcePageId: string;
+  sourcePanelId: string;
 }
 
 export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -48,6 +67,7 @@ export interface EditorState {
   editingPanelId: string | null;
   /** Elemento (globo / onomatopeya) cuyo texto se edita en el lienzo. */
   editingTextId: string | null;
+  panelClipboard: PanelClipboard | null;
   history: Record<string, PageHistory>;
   saveStatus: SaveStatus;
   lastSavedAt: number | null;
@@ -74,6 +94,12 @@ export interface EditorState {
   deleteSelection: () => void;
   setEditingPanel: (panelId: string | null) => void;
   setEditingText: (elementId: string | null) => void;
+
+  /** Copia o corta la imagen de una viñeta (con su encuadre). Devuelve false si está vacía. */
+  copyPanelImage: (pageId: string, panelId: string, mode: "copy" | "cut") => boolean;
+  /** Pega la imagen del portapapeles en una viñeta (reemplaza la que tenga). */
+  pastePanelImage: (pageId: string, panelId: string) => boolean;
+  clearPanelClipboard: () => void;
 
   addElement: (pageId: string, element: CanvasElement) => void;
   /** coalesceKey: null = paso de deshacer propio (acciones discretas como botones). */
@@ -118,6 +144,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     selection: null,
     editingPanelId: null,
     editingTextId: null,
+    panelClipboard: null,
     history: {},
     saveStatus: "idle",
     lastSavedAt: null,
@@ -276,6 +303,73 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         editingTextId:
           selection?.kind === "element" && selection.elementId === s.editingTextId ? s.editingTextId : null,
       })),
+
+    copyPanelImage: (pageId, panelId, mode) => {
+      const { project } = get();
+      const page = project?.pages.find((pg) => pg.id === pageId);
+      const panel = page?.panels.find((pn) => pn.id === panelId);
+      if (!project || !page || !panel?.image) return false;
+      const box = boundingBox(panelPolygon(panel, getFormat(project.formatId), page.style, page.bleed));
+      const img = panel.image;
+      set({
+        panelClipboard: {
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          mode,
+          assetId: img.assetId,
+          offsetXRatio: img.offsetX / box.width,
+          offsetYRatio: img.offsetY / box.height,
+          scale: img.scale,
+          rotation: img.rotation,
+          flipX: img.flipX,
+          sourcePageId: pageId,
+          sourcePanelId: panelId,
+        },
+      });
+      if (mode === "cut") {
+        // Cortar vacía la viñeta ya (se puede deshacer con Cmd+Z en esa página).
+        get().updatePage(pageId, (pg) => ({
+          ...pg,
+          panels: pg.panels.map((pn) => (pn.id === panelId ? { ...pn, image: null } : pn)),
+        }));
+        if (get().editingPanelId === panelId) set({ editingPanelId: null });
+      }
+      return true;
+    },
+
+    pastePanelImage: (pageId, panelId) => {
+      const { project, panelClipboard: clip } = get();
+      const page = project?.pages.find((pg) => pg.id === pageId);
+      const panel = page?.panels.find((pn) => pn.id === panelId);
+      if (!project || !page || !panel || !clip) return false;
+      const box = boundingBox(panelPolygon(panel, getFormat(project.formatId), page.style, page.bleed));
+      get().updatePage(pageId, (pg) => ({
+        ...pg,
+        panels: pg.panels.map((pn) =>
+          pn.id === panelId
+            ? {
+                ...pn,
+                image: {
+                  assetId: clip.assetId,
+                  offsetX: clip.offsetXRatio * box.width,
+                  offsetY: clip.offsetYRatio * box.height,
+                  scale: clip.scale,
+                  rotation: clip.rotation,
+                  flipX: clip.flipX,
+                },
+              }
+            : pn,
+        ),
+      }));
+      set({
+        selection: { kind: "panel", pageId, panelId },
+        editingPanelId: null,
+        // Tras pegar un corte, el origen deja de marcarse; se puede seguir pegando.
+        panelClipboard: clip.mode === "cut" ? { ...clip, mode: "copy", sourcePageId: "", sourcePanelId: "" } : clip,
+      });
+      return true;
+    },
+
+    clearPanelClipboard: () => set({ panelClipboard: null }),
 
     setEditingText: (elementId) => {
       const { activePageId } = get();

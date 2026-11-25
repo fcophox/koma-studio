@@ -8,7 +8,8 @@ import { IconButton } from "@/components/ui/Button";
 import { ELEMENT_DRAG_MIME, registerViewportCenter, type ElementDragPayload } from "@/lib/canvas-bridge";
 import { createBubble, createCustomSfx, createSfx } from "@/lib/factory";
 import { getFormat } from "@/lib/formats";
-import { clamp, panelPolygon, pointInPolygon } from "@/lib/geometry";
+import { boundingBox, clamp, panelPolygon, pointInPolygon } from "@/lib/geometry";
+import { copySelectedPanelFromButton, pasteIntoSelectedPanel } from "@/lib/panel-clipboard";
 import { ACCEPT_ATTR, ASSET_DRAG_MIME, useAssetStore } from "@/lib/store/asset-store";
 import { useFontsVersion } from "@/lib/hooks/use-fonts-version";
 import { getSfxPreset } from "@/lib/sfx-catalog";
@@ -16,6 +17,7 @@ import { selectActivePage, selectActivePageIndex, useEditorStore } from "@/lib/s
 import type { CanvasElement } from "@/lib/types";
 import { cn, isModalOpen, isTypingTarget } from "@/lib/utils";
 import { PageRenderer } from "./PageRenderer";
+import { PanelActionBar } from "./PanelActionBar";
 import { TextEditOverlay } from "./TextEditOverlay";
 
 const MIN_ZOOM = 0.05;
@@ -37,6 +39,8 @@ export function CanvasStage() {
   const updatePanelImage = useEditorStore((s) => s.updatePanelImage);
   const importFiles = useAssetStore((s) => s.importFiles);
   const editingTextId = useEditorStore((s) => s.editingTextId);
+  const panelClipboard = useEditorStore((s) => s.panelClipboard);
+  const deleteSelection = useEditorStore((s) => s.deleteSelection);
   const setEditingText = useEditorStore((s) => s.setEditingText);
   const addElement = useEditorStore((s) => s.addElement);
   const updateElement = useEditorStore((s) => s.updateElement);
@@ -304,6 +308,8 @@ export function CanvasStage() {
   };
 
   const isReady = !!project && !!page && !!format;
+  const clipboardPanelId =
+    panelClipboard?.mode && panelClipboard.sourcePageId === page?.id ? panelClipboard.sourcePanelId : null;
   const selectedPanelId =
     selection?.kind === "panel" && selection.pageId === page?.id ? selection.panelId : null;
   const selectedElementId =
@@ -368,6 +374,7 @@ export function CanvasStage() {
               hoveredPanelId={hoveredPanelId}
               editingPanelId={editingPanelId}
               dropTargetPanelId={dropTargetPanelId}
+              clipboardPanelId={clipboardPanelId}
               onPanelPointerDown={handlePanelPointerDown}
               onPanelDblClick={handlePanelDblClick}
               onPanelHover={setHoveredPanelId}
@@ -384,6 +391,33 @@ export function CanvasStage() {
           </Layer>
         </Stage>
       )}
+
+      {(() => {
+        // Barra de acciones de la viñeta seleccionada (oculta al encuadrar o mover el lienzo).
+        if (!page || !format || !selectedPanelId || editingPanelId || isPanning || isDraggingOver) return null;
+        const index = page.panels.findIndex((pn) => pn.id === selectedPanelId);
+        const panel = page.panels[index];
+        if (!panel) return null;
+        const box = boundingBox(panelPolygon(panel, format, page.style, page.bleed));
+        return (
+          <PanelActionBar
+            box={box}
+            view={view}
+            panelNumber={index + 1}
+            hasImage={!!panel.image}
+            canPaste={!!panelClipboard}
+            onCopy={() => copySelectedPanelFromButton("copy")}
+            onCut={() => copySelectedPanelFromButton("cut")}
+            onPaste={() => pasteIntoSelectedPanel()}
+            onFrame={() => setEditingPanel(panel.id)}
+            onRemove={deleteSelection}
+            onPickFile={() => {
+              filePickTargetRef.current = panel.id;
+              fileInputRef.current?.click();
+            }}
+          />
+        );
+      })()}
 
       {editingTextElement && page && (
         <TextEditOverlay

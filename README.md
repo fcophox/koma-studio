@@ -56,6 +56,9 @@ src/
 | Encuadrar imagen de la viñeta | doble clic o `Enter` · `Esc` para salir |
 | Mover imagen dentro de la viñeta | flechas (1u) · `Shift` + flechas (10u) |
 | Quitar imagen de la viñeta | `Supr` con la viñeta seleccionada |
+| Copiar / cortar imagen de la viñeta | `Ctrl/Cmd+C` · `Ctrl/Cmd+X` (conserva el encuadre) |
+| Pegar en la viñeta seleccionada | `Ctrl/Cmd+V` · misma posición relativa; también pega imágenes copiadas de otra app o web |
+| Olvidar lo copiado | `Esc` sin nada seleccionado |
 | Editar texto de globo / onomatopeya | doble clic o `Enter` · `Esc` o `Ctrl/Cmd+Enter` para terminar |
 | Duplicar elemento | `Ctrl/Cmd+D` |
 | Traer adelante / al frente | `Ctrl/Cmd+]` · `Ctrl/Cmd+Shift+]` |

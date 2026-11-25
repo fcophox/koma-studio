@@ -10,6 +10,7 @@ import type { CanvasElement, Page, PageFormat, PageNumbering, ReadingDirection }
 import { formatPageNumber } from "@/lib/utils";
 import { ElementsLayer } from "./ElementsLayer";
 import { ImageEditOverlay, type ImagePatch } from "./ImageEditOverlay";
+import { MarchingAnts } from "./MarchingAnts";
 import { PanelImage } from "./PanelImage";
 
 export type RenderMode = "editor" | "export";
@@ -27,6 +28,8 @@ type Props = {
   hoveredPanelId?: string | null;
   editingPanelId?: string | null;
   dropTargetPanelId?: string | null;
+  /** Viñeta de origen de lo copiado/cortado (se marca con borde animado). */
+  clipboardPanelId?: string | null;
   onPanelPointerDown?: (panelId: string) => void;
   onPanelDblClick?: (panelId: string) => void;
   onPanelHover?: (panelId: string | null) => void;
@@ -68,6 +71,7 @@ export function PageRenderer({
   hoveredPanelId,
   editingPanelId,
   dropTargetPanelId,
+  clipboardPanelId,
   onPanelPointerDown,
   onPanelDblClick,
   onPanelHover,
@@ -178,16 +182,27 @@ export function PageRenderer({
                 />
               )}
 
+              {/* Seleccionada: tinte suave + borde marcado para que destaque. */}
+              {isSelected && (
+                <Line points={flat} closed fill={ACCENT} opacity={0.1} listening={false} />
+              )}
               {(isSelected || isHovered) && (
                 <Line
                   points={flat}
                   closed
                   stroke={ACCENT}
-                  strokeWidth={(isSelected ? 2.5 : 1.5) * uiScale}
+                  strokeWidth={(isSelected ? 3.5 : 1.5) * uiScale}
                   dash={isHovered ? [6 * uiScale, 4 * uiScale] : undefined}
                   opacity={isHovered ? 0.8 : 1}
+                  shadowEnabled={isSelected}
+                  shadowColor={ACCENT}
+                  shadowBlur={10 * uiScale}
+                  shadowOpacity={0.6}
                   listening={false}
                 />
+              )}
+              {isEditor && clipboardPanelId === panel.id && (
+                <MarchingAnts points={flat} uiScale={uiScale} color={isSelected ? "#ffffff" : ACCENT} />
               )}
             </Fragment>
           );
