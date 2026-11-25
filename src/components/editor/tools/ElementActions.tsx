@@ -1,10 +1,21 @@
 "use client";
 
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Copy, Trash2 } from "lucide-react";
-import { IconButton } from "@/components/ui/Button";
+import {
+  ArrowDown,
+  ArrowDownToLine,
+  ArrowUp,
+  ArrowUpToLine,
+  ClipboardCopy,
+  ClipboardPaste,
+  CopyPlus,
+  Scissors,
+  Trash2,
+} from "lucide-react";
+import { Button, IconButton } from "@/components/ui/Button";
+import { copySelectionFromButton, pasteClipboard } from "@/lib/clipboard";
 import { FONT_OPTIONS } from "@/lib/fonts";
 import type { FontStyle } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, modKeyLabel } from "@/lib/utils";
 import { useEditorStore } from "@/lib/store/editor-store";
 
 type Props = {
@@ -12,35 +23,66 @@ type Props = {
   elementId: string;
 };
 
-/** Orden de capas (z-index), duplicar y eliminar para globos y onomatopeyas. */
+/** Copiar/cortar/pegar, orden de capas (z-index), duplicar y eliminar para globos y onomatopeyas. */
 export function ElementActions({ pageId, elementId }: Props) {
   const reorder = useEditorStore((s) => s.reorderElement);
   const duplicate = useEditorStore((s) => s.duplicateElement);
   const deleteSelection = useEditorStore((s) => s.deleteSelection);
+  const canPaste = useEditorStore((s) => s.clipboard?.kind === "element");
+  const mod = modKeyLabel();
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-line bg-surface-2 p-0.5">
-      <div className="flex">
-        <IconButton label="Enviar al fondo (Ctrl+Shift+[)" size="sm" onClick={() => reorder(pageId, elementId, "back")}>
-          <ArrowDownToLine className="size-3.5" />
-        </IconButton>
-        <IconButton label="Enviar atrás (Ctrl+[)" size="sm" onClick={() => reorder(pageId, elementId, "backward")}>
-          <ArrowDown className="size-3.5" />
-        </IconButton>
-        <IconButton label="Traer adelante (Ctrl+])" size="sm" onClick={() => reorder(pageId, elementId, "forward")}>
-          <ArrowUp className="size-3.5" />
-        </IconButton>
-        <IconButton label="Traer al frente (Ctrl+Shift+])" size="sm" onClick={() => reorder(pageId, elementId, "front")}>
-          <ArrowUpToLine className="size-3.5" />
-        </IconButton>
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          size="sm"
+          icon={<ClipboardCopy className="size-3.5" />}
+          onClick={() => copySelectionFromButton("copy")}
+          title={`${mod}C`}
+        >
+          Copiar
+        </Button>
+        <Button
+          size="sm"
+          icon={<Scissors className="size-3.5" />}
+          onClick={() => copySelectionFromButton("cut")}
+          title={`${mod}X`}
+        >
+          Cortar
+        </Button>
+        <Button
+          size="sm"
+          icon={<ClipboardPaste className="size-3.5" />}
+          onClick={() => pasteClipboard()}
+          disabled={!canPaste}
+          title={`Pega el globo u onomatopeya copiado (${mod}V)`}
+        >
+          Pegar
+        </Button>
       </div>
-      <div className="flex">
-        <IconButton label="Duplicar (Ctrl+D)" size="sm" onClick={() => duplicate(pageId, elementId)}>
-          <Copy className="size-3.5" />
-        </IconButton>
-        <IconButton label="Eliminar (Supr)" size="sm" onClick={deleteSelection} className="hover:text-red-300">
-          <Trash2 className="size-3.5" />
-        </IconButton>
+      <div className="flex items-center justify-between rounded-lg border border-line bg-surface-2 p-0.5">
+        <div className="flex">
+          <IconButton label="Enviar al fondo (Ctrl+Shift+[)" size="sm" onClick={() => reorder(pageId, elementId, "back")}>
+            <ArrowDownToLine className="size-3.5" />
+          </IconButton>
+          <IconButton label="Enviar atrás (Ctrl+[)" size="sm" onClick={() => reorder(pageId, elementId, "backward")}>
+            <ArrowDown className="size-3.5" />
+          </IconButton>
+          <IconButton label="Traer adelante (Ctrl+])" size="sm" onClick={() => reorder(pageId, elementId, "forward")}>
+            <ArrowUp className="size-3.5" />
+          </IconButton>
+          <IconButton label="Traer al frente (Ctrl+Shift+])" size="sm" onClick={() => reorder(pageId, elementId, "front")}>
+            <ArrowUpToLine className="size-3.5" />
+          </IconButton>
+        </div>
+        <div className="flex">
+          <IconButton label={`Duplicar (${mod}D)`} size="sm" onClick={() => duplicate(pageId, elementId)}>
+            <CopyPlus className="size-3.5" />
+          </IconButton>
+          <IconButton label="Eliminar (Supr)" size="sm" onClick={deleteSelection} className="hover:text-red-300">
+            <Trash2 className="size-3.5" />
+          </IconButton>
+        </div>
       </div>
     </div>
   );

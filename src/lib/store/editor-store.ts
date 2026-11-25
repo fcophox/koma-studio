@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { applyTemplateToPage, cloneElement, clonePage, createPage } from "../factory";
+import { applyTemplateToPage, cloneElement, clonePage, createPage, newId } from "../factory";
 import { getFormat } from "../formats";
 import { boundingBox, mirrorNormalized, panelPolygon } from "../geometry";
 import type {
@@ -66,6 +66,7 @@ export interface Toast {
  * distinto) queda en la misma posición proporcional.
  */
 export interface PanelClipboard {
+  kind: "panel";
   id: string;
   mode: "copy" | "cut";
   assetId: string;
@@ -77,6 +78,22 @@ export interface PanelClipboard {
   sourcePageId: string;
   sourcePanelId: string;
 }
+
+/** Globo u onomatopeya copiado/cortado (copia completa del elemento). */
+export interface ElementClipboard {
+  kind: "element";
+  id: string;
+  mode: "copy" | "cut";
+  element: CanvasElement;
+  sourcePageId: string;
+  /** Veces pegado: en la misma página cada pegado se desplaza un poco. */
+  pasteCount: number;
+}
+
+export type Clipboard = PanelClipboard | ElementClipboard;
+
+const clipId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const elementNoun = (el: CanvasElement) => (el.type === "bubble" ? "globo" : "onomatopeya");
 
 export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
@@ -102,7 +119,8 @@ export interface EditorState {
   editingPanelId: string | null;
   /** Elemento (globo / onomatopeya) cuyo texto se edita en el lienzo. */
   editingTextId: string | null;
-  panelClipboard: PanelClipboard | null;
+  /** Lo último copiado o cortado: imagen de viñeta o globo/onomatopeya. */
+  clipboard: Clipboard | null;
   history: History;
   toast: Toast | null;
   saveStatus: SaveStatus;
@@ -135,9 +153,13 @@ export interface EditorState {
   copyPanelImage: (pageId: string, panelId: string, mode: "copy" | "cut") => boolean;
   /** Pega la imagen del portapapeles en una viñeta (reemplaza la que tenga). */
   pastePanelImage: (pageId: string, panelId: string) => boolean;
-  clearPanelClipboard: () => void;
+  /** Copia o corta un globo/onomatopeya. */
+  copyElement: (pageId: string, elementId: string, mode: "copy" | "cut") => boolean;
+  /** Pega el globo/onomatopeya copiado en una página. Devuelve el elemento nuevo. */
+  pasteElement: (pageId: string) => CanvasElement | null;
+  clearClipboard: () => void;
 
-  addElement: (pageId: string, element: CanvasElement) => void;
+  addElement: (pageId: string, element: CanvasElement, label?: string) => void;
   /** coalesceKey: null = paso de deshacer propio (acciones discretas como botones). */
   updateElement: (pageId: string, elementId: string, patch: Partial<CanvasElement>, coalesceKey?: string | null) => void;
   reorderElement: (pageId: string, elementId: string, to: "front" | "back" | "forward" | "backward") => void;
@@ -218,7 +240,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     selection: null,
     editingPanelId: null,
     editingTextId: null,
-    panelClipboard: null,
+    clipboard: null,
     history: EMPTY_HISTORY,
     toast: null,
     saveStatus: "idle",
@@ -389,8 +411,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const box = boundingBox(panelPolygon(panel, getFormat(project.formatId), page.style, page.bleed));
       const img = panel.image;
       set({
-        panelClipboard: {
-          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        clipboard: {
+          kind: "panel",
+          id: clipId(),
           mode,
           assetId: img.assetId,
           offsetXRatio: img.offsetX / box.width,
@@ -415,10 +438,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     },
 
     pastePanelImage: (pageId, panelId) => {
-      const { project, panelClipboard: clip } = get();
+      const { project, clipboard: clip } = get();
       const page = project?.pages.find((pg) => pg.id === pageId);
       const panel = page?.panels.find((pn) => pn.id === panelId);
-      if (!project || !page || !panel || !clip) return false;
+      if (!project || !page || !panel || clip?.kind !== "panel") return false;
       const box = boundingBox(panelPolygon(panel, getFormat(project.formatId), page.style, page.bleed));
       get().updatePage(pageId, (pg) => ({
         ...pg,
@@ -442,12 +465,46 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         selection: { kind: "panel", pageId, panelId },
         editingPanelId: null,
         // Tras pegar un corte, el origen deja de marcarse; se puede seguir pegando.
-        panelClipboard: clip.mode === "cut" ? { ...clip, mode: "copy", sourcePageId: "", sourcePanelId: "" } : clip,
+        clipboard: clip.mode === "cut" ? { ...clip, mode: "copy", sourcePageId: "", sourcePanelId: "" } : clip,
       });
       return true;
     },
 
-    clearPanelClipboard: () => set({ panelClipboard: null }),
+    copyElement: (pageId, elementId, mode) => {
+      const page = get().project?.pages.find((pg) => pg.id === pageId);
+      const element = page?.elements.find((el) => el.id === elementId);
+      if (!page || !element) return false;
+      set({
+        clipboard: { kind: "element", id: clipId(), mode, element: structuredClone(element), sourcePageId: pageId, pasteCount: 0 },
+      });
+      if (mode === "cut") {
+        get().updatePage(pageId, (pg) => ({ ...pg, elements: pg.elements.filter((el) => el.id !== elementId) }), {
+          label: `Cortar ${elementNoun(element)}`,
+        });
+        set({ selection: null, editingTextId: null });
+      }
+      return true;
+    },
+
+    pasteElement: (pageId) => {
+      const clip = get().clipboard;
+      if (clip?.kind !== "element" || !get().project?.pages.some((pg) => pg.id === pageId)) return null;
+      // Misma página: cada pegado se desplaza 24u para no quedar encima del
+      // original. En otra página (o el primer pegado de un corte), misma posición.
+      const steps = clip.sourcePageId === pageId ? clip.pasteCount + (clip.mode === "copy" ? 1 : 0) : 0;
+      const offset = steps * 24;
+      const element: CanvasElement = {
+        ...structuredClone(clip.element),
+        id: newId("el_"),
+        x: clip.element.x + offset,
+        y: clip.element.y + offset,
+      };
+      get().addElement(pageId, element, `Pegar ${elementNoun(element)}`);
+      set({ clipboard: { ...clip, pasteCount: clip.pasteCount + 1 } });
+      return element;
+    },
+
+    clearClipboard: () => set({ clipboard: null }),
 
     setEditingText: (elementId) => {
       const { activePageId } = get();
@@ -459,9 +516,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       });
     },
 
-    addElement: (pageId, element) => {
+    addElement: (pageId, element, label) => {
       get().updatePage(pageId, (pg) => ({ ...pg, elements: [...pg.elements, element] }), {
-        label: element.type === "bubble" ? "Añadir globo" : "Añadir onomatopeya",
+        label: label ?? (element.type === "bubble" ? "Añadir globo" : "Añadir onomatopeya"),
       });
       set({ selection: { kind: "element", pageId, elementId: element.id }, editingPanelId: null, editingTextId: null });
     },
@@ -656,3 +713,7 @@ export const selectCanRedo = (s: EditorState) => s.history.future.length > 0;
 export const selectUndoLabel = (s: EditorState) => s.history.past[s.history.past.length - 1]?.label ?? null;
 
 export const selectRedoLabel = (s: EditorState) => s.history.future[0]?.label ?? null;
+
+export const selectPanelClipboard = (s: EditorState) => (s.clipboard?.kind === "panel" ? s.clipboard : null);
+
+export const selectElementClipboard = (s: EditorState) => (s.clipboard?.kind === "element" ? s.clipboard : null);

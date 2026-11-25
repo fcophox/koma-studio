@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { SliderRow } from "@/components/ui/Fields";
 import { useAssetImage } from "@/lib/hooks/use-asset-image";
 import { containScale, panelPolygon } from "@/lib/geometry";
-import { copySelectedPanelFromButton, pasteIntoSelectedPanel } from "@/lib/panel-clipboard";
+import { copySelectionFromButton, pasteClipboard } from "@/lib/clipboard";
 import { ACCEPT_ATTR, useAssetStore } from "@/lib/store/asset-store";
 import { useEditorStore } from "@/lib/store/editor-store";
 import type { Page, PageFormat, PanelSlot } from "@/lib/types";
@@ -39,7 +39,7 @@ export function PanelInspector({ page, panel, index, format }: Props) {
   const importFiles = useAssetStore((s) => s.importFiles);
   const assetMeta = useAssetStore((s) => s.assets.find((a) => a.id === panel.image?.assetId));
   const image = useAssetImage(panel.image?.assetId);
-  const hasClipboard = useEditorStore((s) => !!s.panelClipboard);
+  const hasClipboard = useEditorStore((s) => s.clipboard?.kind === "panel");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,7 +65,7 @@ export function PanelInspector({ page, panel, index, format }: Props) {
             size="sm"
             variant="primary"
             icon={<ClipboardPaste className="size-3.5" />}
-            onClick={() => pasteIntoSelectedPanel()}
+            onClick={() => pasteClipboard()}
           >
             Pegar imagen copiada (⌘V)
           </Button>
@@ -116,16 +116,16 @@ export function PanelInspector({ page, panel, index, format }: Props) {
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <Button size="sm" icon={<Copy className="size-3.5" />} onClick={() => copySelectedPanelFromButton("copy")} title="⌘C">
+        <Button size="sm" icon={<Copy className="size-3.5" />} onClick={() => copySelectionFromButton("copy")} title="⌘C">
           Copiar
         </Button>
-        <Button size="sm" icon={<Scissors className="size-3.5" />} onClick={() => copySelectedPanelFromButton("cut")} title="⌘X">
+        <Button size="sm" icon={<Scissors className="size-3.5" />} onClick={() => copySelectionFromButton("cut")} title="⌘X">
           Cortar
         </Button>
         <Button
           size="sm"
           icon={<ClipboardPaste className="size-3.5" />}
-          onClick={() => pasteIntoSelectedPanel()}
+          onClick={() => pasteClipboard()}
           disabled={!hasClipboard}
           title="Reemplaza la imagen (⌘V)"
         >

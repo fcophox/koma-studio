@@ -9,11 +9,11 @@ import { ELEMENT_DRAG_MIME, registerViewportCenter, type ElementDragPayload } fr
 import { createBubble, createCustomSfx, createSfx } from "@/lib/factory";
 import { getFormat } from "@/lib/formats";
 import { boundingBox, clamp, panelPolygon, pointInPolygon } from "@/lib/geometry";
-import { copySelectedPanelFromButton, pasteIntoSelectedPanel } from "@/lib/panel-clipboard";
+import { copySelectionFromButton, pasteClipboard } from "@/lib/clipboard";
 import { ACCEPT_ATTR, ASSET_DRAG_MIME, useAssetStore } from "@/lib/store/asset-store";
 import { useFontsVersion } from "@/lib/hooks/use-fonts-version";
 import { getSfxPreset } from "@/lib/sfx-catalog";
-import { selectActivePage, selectActivePageIndex, useEditorStore } from "@/lib/store/editor-store";
+import { selectActivePage, selectActivePageIndex, selectPanelClipboard, useEditorStore } from "@/lib/store/editor-store";
 import type { CanvasElement } from "@/lib/types";
 import { cn, isModalOpen, isTypingTarget } from "@/lib/utils";
 import { PageRenderer } from "./PageRenderer";
@@ -39,7 +39,7 @@ export function CanvasStage() {
   const updatePanelImage = useEditorStore((s) => s.updatePanelImage);
   const importFiles = useAssetStore((s) => s.importFiles);
   const editingTextId = useEditorStore((s) => s.editingTextId);
-  const panelClipboard = useEditorStore((s) => s.panelClipboard);
+  const panelClipboard = useEditorStore(selectPanelClipboard);
   const deleteSelection = useEditorStore((s) => s.deleteSelection);
   const setEditingText = useEditorStore((s) => s.setEditingText);
   const addElement = useEditorStore((s) => s.addElement);
@@ -417,9 +417,9 @@ export function CanvasStage() {
             panelNumber={index + 1}
             hasImage={!!panel.image}
             canPaste={!!panelClipboard}
-            onCopy={() => copySelectedPanelFromButton("copy")}
-            onCut={() => copySelectedPanelFromButton("cut")}
-            onPaste={() => pasteIntoSelectedPanel()}
+            onCopy={() => copySelectionFromButton("copy")}
+            onCut={() => copySelectionFromButton("cut")}
+            onPaste={() => pasteClipboard()}
             onFrame={() => setEditingPanel(panel.id)}
             onRemove={deleteSelection}
             onPickFile={() => {

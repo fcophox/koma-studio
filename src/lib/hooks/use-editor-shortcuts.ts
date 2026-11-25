@@ -3,11 +3,12 @@
 import { useEffect } from "react";
 import {
   CLIPBOARD_MARKER,
-  copySelectedPanel,
-  copySelectedPanelFromButton,
+  copySelection,
+  copySelectionFromButton,
+  hasCopyableSelection,
+  pasteClipboard,
   pasteFilesIntoSelectedPanel,
-  pasteIntoSelectedPanel,
-} from "../panel-clipboard";
+} from "../clipboard";
 import { useEditorStore } from "../store/editor-store";
 import { isModalOpen, isTextEntryTarget, isTypingTarget } from "../utils";
 
@@ -57,17 +58,23 @@ export function useEditorShortcuts(isEnabled: boolean) {
       const store = useEditorStore.getState();
       const key = e.key.toLowerCase();
 
-      // Copiar/cortar/pegar viñetas: lo resuelven los eventos nativos de abajo;
-      // si el navegador no los dispara (p. ej. Safari sin texto seleccionado),
-      // este respaldo actúa en el siguiente tick.
-      if (mod && !e.altKey && (key === "c" || key === "x" || key === "v") && store.selection?.kind === "panel") {
+      // Copiar/cortar/pegar (viñetas y globos): lo resuelven los eventos nativos
+      // de abajo; si el navegador no los dispara (p. ej. Safari sin texto
+      // seleccionado), este respaldo actúa en el siguiente tick.
+      const isCopyKey = key === "c" || key === "x";
+      const isClipboardShortcut =
+        mod &&
+        !e.altKey &&
+        ((isCopyKey && hasCopyableSelection()) ||
+          (key === "v" && (store.selection?.kind === "panel" || !!store.clipboard)));
+      if (isClipboardShortcut) {
         if (window.getSelection()?.toString()) return;
         clipboardHandled = false;
         const mode = key === "x" ? "cut" : "copy";
         setTimeout(() => {
           if (clipboardHandled) return;
-          if (key === "v") pasteIntoSelectedPanel();
-          else copySelectedPanelFromButton(mode);
+          if (key === "v") pasteClipboard();
+          else copySelectionFromButton(mode);
         }, 60);
         return;
       }
@@ -86,7 +93,7 @@ export function useEditorShortcuts(isEnabled: boolean) {
       } else if (key === "escape") {
         if (store.editingPanelId) store.setEditingPanel(null);
         else if (store.selection) store.select(null);
-        else store.clearPanelClipboard(); // segundo Esc: olvidar lo copiado
+        else store.clearClipboard(); // segundo Esc: olvidar lo copiado
       } else if (store.selection?.kind === "element" && handleElementKey(e, key, mod)) {
         // Atajos de globos / onomatopeyas resueltos en handleElementKey.
       } else if (key === "enter" && store.selection?.kind === "panel" && !(e.target instanceof HTMLButtonElement)) {
@@ -127,10 +134,9 @@ export function useEditorShortcuts(isEnabled: boolean) {
     };
 
     const handleCopyOrCut = (e: ClipboardEvent) => {
-      if (!isOwnClipboardContext()) return;
-      if (useEditorStore.getState().selection?.kind !== "panel") return;
+      if (!isOwnClipboardContext() || !hasCopyableSelection()) return;
       clipboardHandled = true;
-      const marker = copySelectedPanel(e.type === "cut" ? "cut" : "copy");
+      const marker = copySelection(e.type === "cut" ? "cut" : "copy");
       if (!marker) return;
       e.preventDefault();
       e.clipboardData?.setData("text/plain", marker);
@@ -138,17 +144,19 @@ export function useEditorShortcuts(isEnabled: boolean) {
 
     const handlePaste = (e: ClipboardEvent) => {
       if (!isOwnClipboardContext()) return;
-      if (useEditorStore.getState().selection?.kind !== "panel") return;
+      const { selection, clipboard } = useEditorStore.getState();
+      const isPanelSelected = selection?.kind === "panel";
+      if (!isPanelSelected && !clipboard) return;
       clipboardHandled = true;
+      e.preventDefault();
       const files = Array.from(e.clipboardData?.files ?? []);
       const text = e.clipboardData?.getData("text/plain") ?? "";
       // Una imagen copiada fuera de Koma (más reciente que nuestro marcador) tiene prioridad.
-      if (files.length && !text.startsWith(CLIPBOARD_MARKER)) {
-        e.preventDefault();
+      if (isPanelSelected && files.length && !text.startsWith(CLIPBOARD_MARKER)) {
         void pasteFilesIntoSelectedPanel(files);
         return;
       }
-      if (pasteIntoSelectedPanel()) e.preventDefault();
+      pasteClipboard();
     };
 
     window.addEventListener("keydown", handleKeyDown);
