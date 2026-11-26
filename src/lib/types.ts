@@ -136,6 +136,8 @@ export type CanvasElement = SpeechBubble | OnomatopoeiaElement;
 
 export interface Page {
   id: string;
+  /** Subcategoría a la que pertenece (sus páginas siempre son consecutivas). */
+  sectionId?: string | null;
   templateId: string;
   /** Plantillas a sangre ignoran el margen exterior. */
   bleed: boolean;
@@ -156,10 +158,19 @@ export interface Project {
   /** Estilo aplicado a las páginas nuevas. */
   defaultStyle: PanelStyle;
   pages: Page[];
+  /** Subcategorías del panel de páginas (agrupan páginas consecutivas). */
+  sections: PageSection[];
+  /** Subcategorías plegadas en el panel (estado de vista, fuera del deshacer). */
+  collapsedSections: string[];
   /** Fichas de personaje del proyecto (biblia de personajes). */
   characters: Character[];
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PageSection {
+  id: string;
+  name: string;
 }
 
 export type CharacterImageCategory = "body" | "face" | "outfit" | "variant";

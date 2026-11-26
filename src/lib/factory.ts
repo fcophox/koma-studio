@@ -99,6 +99,8 @@ export function createProject(input: NewProjectInput): Project {
     },
     defaultStyle: { ...DEFAULT_PANEL_STYLE },
     pages,
+    sections: [],
+    collapsedSections: [],
     characters: [],
     createdAt: now,
     updatedAt: now,
@@ -130,6 +132,8 @@ export function migrateProject(raw: Project): Project {
     style: { ...DEFAULT_PANEL_STYLE, ...pg.style },
   }));
   p.characters = p.characters ?? [];
+  p.sections = p.sections ?? [];
+  p.collapsedSections = p.collapsedSections ?? [];
   if (p.pages.length === 0) p.pages = [createPage(DEFAULT_TEMPLATE_ID, p.readingDirection, p.defaultStyle)];
   return p;
 }

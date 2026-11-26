@@ -53,6 +53,7 @@ src/
 | Zoom | rueda · `Ctrl/Cmd +/−` · `Ctrl/Cmd 0` encajar |
 | Cambiar de página | `RePág` / `AvPág` |
 | Reordenar páginas | arrastra la miniatura arriba/abajo · teclado: asa ⋮⋮ + `Espacio`, flechas, `Espacio` |
+| Seleccionar varias páginas | `Ctrl/Cmd+clic` (añadir/quitar) · `Shift+clic` (rango) · `Esc` quita la selección · `Supr` las elimina |
 | Encuadrar imagen de la viñeta | doble clic o `Enter` · `Esc` para salir |
 | Mover imagen dentro de la viñeta | flechas (1u) · `Shift` + flechas (10u) |
 | Quitar imagen de la viñeta | `Supr` con la viñeta seleccionada |
@@ -64,6 +65,16 @@ src/
 | Traer adelante / al frente | `Ctrl/Cmd+]` · `Ctrl/Cmd+Shift+]` |
 | Enviar atrás / al fondo | `Ctrl/Cmd+[` · `Ctrl/Cmd+Shift+[` |
 | Mover elemento | flechas (1u) · `Shift` + flechas (10u) |
+
+## Panel de páginas: subcategorías
+
+- **Varias páginas a la vez:** selecciónalas con `Cmd/Ctrl+clic` o `Shift+clic` y arrastra cualquiera de ellas: se mueven juntas, en su orden.
+- **Subcategorías:** botón de carpeta (o "Agrupar" en la barra de selección) para agrupar las páginas elegidas; el nombre se edita al momento, con doble clic o con el lápiz.
+- **Plegar / desplegar** con la flecha del encabezado. Clic en el nombre selecciona todas sus páginas.
+- **Mover una subcategoría completa** arrastrando su encabezado.
+- Arrastrar una página dentro de una subcategoría la incluye; por encima de su encabezado, la saca. También "Sacar de su subcategoría" o "Desagrupar" (las páginas se quedan).
+- La numeración y la exportación siguen el orden real de las páginas; todo se puede deshacer con `Cmd+Z`.
+- Botón de filas: miniaturas pequeñas para ver y mover muchas páginas.
 
 ## Imágenes
 

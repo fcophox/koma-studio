@@ -4,12 +4,14 @@ import { create } from "zustand";
 import { applyTemplateToPage, cloneElement, clonePage, createPage, newId } from "../factory";
 import { getFormat } from "../formats";
 import { boundingBox, mirrorNormalized, panelPolygon } from "../geometry";
+import { moveSection, movePages, normalizeSections, type DropTarget } from "../page-outline";
 import type {
   CanvasElement,
   Character,
   CharacterImage,
   Page,
   PageNumbering,
+  PageSection,
   PanelStyle,
   PlacedImage,
   Project,
@@ -25,7 +27,7 @@ const COALESCE_MS = 600;
  * Título, capítulo y personajes quedan fuera (se editan en formularios con su
  * propio deshacer de texto, y borrar un personaje elimina archivos).
  */
-type DocState = Pick<Project, "pages" | "numbering" | "defaultStyle" | "readingDirection" | "formatId">;
+type DocState = Pick<Project, "pages" | "sections" | "numbering" | "defaultStyle" | "readingDirection" | "formatId">;
 
 interface HistoryEntry {
   doc: DocState;
@@ -45,6 +47,7 @@ const EMPTY_HISTORY: History = { past: [], future: [] };
 
 const docOf = (p: Project): DocState => ({
   pages: p.pages,
+  sections: p.sections,
   numbering: p.numbering,
   defaultStyle: p.defaultStyle,
   readingDirection: p.readingDirection,
@@ -138,6 +141,21 @@ export interface EditorState {
   duplicatePage: (pageId: string) => void;
   deletePage: (pageId: string) => void;
   movePage: (fromIndex: number, toIndex: number) => void;
+  /** Mueve varias páginas juntas (en su orden) al destino indicado. */
+  movePagesTo: (pageIds: string[], target: DropTarget) => void;
+  /** Mueve una subcategoría completa. */
+  moveSectionTo: (sectionId: string, target: DropTarget) => void;
+  deletePages: (pageIds: string[]) => void;
+
+  // Subcategorías del panel de páginas
+  /** Agrupa páginas en una subcategoría nueva y devuelve su id. */
+  createSection: (pageIds: string[], name?: string) => string | null;
+  renameSection: (sectionId: string, name: string) => void;
+  /** Quita la subcategoría y deja sus páginas sueltas (en su sitio). */
+  ungroupSection: (sectionId: string) => void;
+  /** Saca páginas de su subcategoría (quedan justo después de ella). */
+  removePagesFromSection: (pageIds: string[]) => void;
+  toggleSectionCollapsed: (sectionId: string, isCollapsed?: boolean) => void;
 
   updatePage: (pageId: string, updater: (page: Page) => Page, opts?: UpdateOptions) => void;
   applyTemplate: (pageId: string, templateId: string) => void;
@@ -228,6 +246,18 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     set({ project: { ...next, updatedAt: Date.now() }, history: nextHistory });
   };
 
+  /** Aplica un nuevo orden/pertenencia de páginas manteniendo las subcategorías coherentes. */
+  const commitPages = (
+    fn: (p: Project) => { pages: Page[]; sections?: PageSection[] },
+    opts: { label: string; focusPageId?: string | null; coalesceKey?: string },
+  ) =>
+    commit((p) => {
+      const next = fn(p);
+      if (next.pages === p.pages && (!next.sections || next.sections === p.sections)) return p;
+      const normalized = normalizeSections(next.pages, next.sections ?? p.sections);
+      return { ...p, pages: normalized.pages, sections: normalized.sections };
+    }, opts);
+
   /** Página a mostrar tras deshacer/rehacer: la afectada, la actual o la primera. */
   const pickActive = (p: Project, preferred: string | null, current: string | null) =>
     [preferred, current].find((id) => id && p.pages.some((pg) => pg.id === id)) ?? p.pages[0]?.id ?? null;
@@ -300,12 +330,16 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     addPage: (templateId, afterPageId) => {
       const { project, activePageId } = get();
       if (!project) return;
-      const page = createPage(templateId, project.readingDirection, project.defaultStyle);
       const anchor = afterPageId ?? activePageId;
       const idx = project.pages.findIndex((pg) => pg.id === anchor);
+      // La página nueva queda en la misma subcategoría que la página junto a la que se crea.
+      const page = {
+        ...createPage(templateId, project.readingDirection, project.defaultStyle),
+        sectionId: idx === -1 ? null : (project.pages[idx].sectionId ?? null),
+      };
       const pages = [...project.pages];
       pages.splice(idx === -1 ? pages.length : idx + 1, 0, page);
-      commit((p) => ({ ...p, pages }), { label: "Añadir página" });
+      commitPages(() => ({ pages }), { label: "Añadir página" });
       set({ activePageId: page.id, selection: null });
     },
 
@@ -330,22 +364,136 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const nextActive = activePageId === pageId ? pages[Math.min(idx, pages.length - 1)].id : activePageId;
       const label = `Eliminar página ${String(project.numbering.startAt + idx).padStart(2, "0")}`;
       // focusPageId = la borrada: al deshacer se vuelve a mostrar.
-      commit((p) => ({ ...p, pages }), { label, focusPageId: pageId });
+      commitPages(() => ({ pages }), { label, focusPageId: pageId });
       set({ activePageId: nextActive, selection: null, editingPanelId: null, editingTextId: null });
       get().showToast({ message: `${label.replace("Eliminar", "Eliminaste la")}`, actionLabel: "Deshacer", onAction: () => get().undo() });
     },
 
     movePage: (from, to) =>
-      commit(
+      commitPages(
         (p) => {
-          if (from === to || from < 0 || to < 0 || from >= p.pages.length || to >= p.pages.length) return p;
+          if (from === to || from < 0 || to < 0 || from >= p.pages.length || to >= p.pages.length) return { pages: p.pages };
           const pages = [...p.pages];
           const [moved] = pages.splice(from, 1);
           pages.splice(to, 0, moved);
-          return { ...p, pages };
+          return { pages };
         },
         { label: "Mover página", focusPageId: get().project?.pages[from]?.id ?? null },
       ),
+
+    movePagesTo: (pageIds, target) => {
+      if (!pageIds.length) return;
+      commitPages((p) => ({ pages: movePages(p.pages, pageIds, target) }), {
+        label: pageIds.length > 1 ? `Mover ${pageIds.length} páginas` : "Mover página",
+        focusPageId: pageIds[0],
+      });
+    },
+
+    moveSectionTo: (sectionId, target) => {
+      const name = get().project?.sections.find((s) => s.id === sectionId)?.name ?? "subcategoría";
+      commitPages((p) => ({ pages: moveSection(p.pages, sectionId, target) }), { label: `Mover «${name}»` });
+    },
+
+    deletePages: (pageIds) => {
+      const { project, activePageId } = get();
+      if (!project || !pageIds.length) return;
+      const ids = new Set(pageIds);
+      const pages = project.pages.filter((pg) => !ids.has(pg.id));
+      if (pages.length === 0) {
+        get().showToast({ message: "No puedes eliminar todas las páginas del capítulo.", duration: 3000 });
+        return;
+      }
+      if (pages.length === project.pages.length) return;
+      const firstIdx = project.pages.findIndex((pg) => ids.has(pg.id));
+      const removed = project.pages.length - pages.length;
+      commitPages(() => ({ pages }), {
+        label: removed > 1 ? `Eliminar ${removed} páginas` : "Eliminar página",
+        focusPageId: activePageId && ids.has(activePageId) ? activePageId : pageIds[0],
+      });
+      set({
+        activePageId:
+          activePageId && !ids.has(activePageId) ? activePageId : pages[Math.min(firstIdx, pages.length - 1)].id,
+        selection: null,
+        editingPanelId: null,
+        editingTextId: null,
+      });
+      get().showToast({
+        message: removed > 1 ? `Eliminaste ${removed} páginas` : "Eliminaste 1 página",
+        actionLabel: "Deshacer",
+        onAction: () => get().undo(),
+      });
+    },
+
+    createSection: (pageIds, name) => {
+      const { project } = get();
+      if (!project || !pageIds.length) return null;
+      const id = newId("sec_");
+      const sectionName = name ?? `Subcategoría ${project.sections.length + 1}`;
+      // Las páginas se juntan donde está la primera seleccionada.
+      const ids = new Set(pageIds);
+      const first = project.pages.find((pg) => ids.has(pg.id));
+      if (!first) return null;
+      commitPages(
+        (p) => {
+          const moved = movePages(p.pages, pageIds, { kind: "page", pageId: first.id, position: "before" });
+          const pages = moved.map((pg) => (ids.has(pg.id) ? { ...pg, sectionId: id } : pg));
+          return { pages, sections: [...p.sections, { id, name: sectionName }] };
+        },
+        { label: "Crear subcategoría", focusPageId: first.id },
+      );
+      return id;
+    },
+
+    renameSection: (sectionId, name) =>
+      commit(
+        (p) => ({ ...p, sections: p.sections.map((s) => (s.id === sectionId ? { ...s, name } : s)) }),
+        { label: "Renombrar subcategoría", coalesceKey: `section-name:${sectionId}` },
+      ),
+
+    ungroupSection: (sectionId) =>
+      commitPages(
+        (p) => ({
+          pages: p.pages.map((pg) => (pg.sectionId === sectionId ? { ...pg, sectionId: null } : pg)),
+          sections: p.sections.filter((s) => s.id !== sectionId),
+        }),
+        { label: "Desagrupar subcategoría" },
+      ),
+
+    removePagesFromSection: (pageIds) => {
+      const { project } = get();
+      if (!project) return;
+      const ids = new Set(pageIds);
+      const inSections = project.pages.filter((pg) => ids.has(pg.id) && pg.sectionId);
+      if (!inSections.length) return;
+      commitPages(
+        (p) => {
+          // Cada página sale justo después del final de su subcategoría.
+          let pages = p.pages;
+          [...new Set(inSections.map((pg) => pg.sectionId!))].forEach((sid) => {
+            const groupIds = inSections.filter((pg) => pg.sectionId === sid).map((pg) => pg.id);
+            const remaining = pages.filter((pg) => pg.sectionId === sid && !groupIds.includes(pg.id));
+            const last = remaining[remaining.length - 1];
+            pages = last
+              ? movePages(pages, groupIds, { kind: "page", pageId: last.id, position: "after" }).map((pg) =>
+                  groupIds.includes(pg.id) ? { ...pg, sectionId: null } : pg,
+                )
+              : pages.map((pg) => (groupIds.includes(pg.id) ? { ...pg, sectionId: null } : pg));
+          });
+          return { pages };
+        },
+        { label: "Sacar de la subcategoría", focusPageId: pageIds[0] },
+      );
+    },
+
+    toggleSectionCollapsed: (sectionId, isCollapsed) =>
+      // Estado de vista: se guarda con el proyecto pero no crea pasos de deshacer.
+      mutate((p) => {
+        const current = new Set(p.collapsedSections);
+        const next = isCollapsed ?? !current.has(sectionId);
+        if (next) current.add(sectionId);
+        else current.delete(sectionId);
+        return { ...p, collapsedSections: [...current] };
+      }),
 
     updatePage: (pageId, updater, opts = {}) =>
       commit(
