@@ -1,8 +1,7 @@
 "use client";
 
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { Check, Copy, GripVertical, Trash2 } from "lucide-react";
+import { useDraggable } from "@dnd-kit/core";
+import { Check, Copy, FolderInput, Trash2 } from "lucide-react";
 import { PagePreview } from "@/components/shared/PagePreview";
 import { IconButton } from "@/components/ui/Button";
 import type { Page, PageFormat, PageNumbering, ReadingDirection } from "@/lib/types";
@@ -22,15 +21,21 @@ type Props = {
   isMultiSelecting: boolean;
   /** Miniaturas pequeñas para ver y mover muchas páginas a la vez. */
   isCompact: boolean;
+  /** Esta página va en el arrastre en curso (se atenúa en su sitio). */
+  isBeingDragged: boolean;
   canDelete: boolean;
+  measureRef: (el: HTMLElement | null) => void;
   onClick: (e: React.MouseEvent) => void;
+  /** Alt+↑ / Alt+↓ con la miniatura enfocada. */
+  onNudge: (direction: -1 | 1) => void;
+  onMoveTo: (anchor: HTMLElement) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 };
 
 /**
  * Miniatura de página en el panel lateral. Toda la miniatura se arrastra con
- * el ratón (un clic sin mover la abre); el teclado usa el asa ⋮⋮.
+ * el ratón (un clic sin mover la abre). Sin ratón: "Mover a…" o Alt+↑/↓.
  */
 export function PageRow({
   rowId,
@@ -44,14 +49,16 @@ export function PageRow({
   isSelected,
   isMultiSelecting,
   isCompact,
+  isBeingDragged,
   canDelete,
+  measureRef,
   onClick,
+  onNudge,
+  onMoveTo,
   onDuplicate,
   onDelete,
 }: Props) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: rowId,
-  });
+  const { listeners, setNodeRef } = useDraggable({ id: rowId });
   const printed = numbering.startAt + index;
   const label = formatPageNumber(printed);
   const isTall = format.height / format.width > 2;
@@ -59,13 +66,15 @@ export function PageRow({
 
   return (
     <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      ref={(el) => {
+        setNodeRef(el);
+        measureRef(el);
+      }}
       className={cn(
-        "group relative flex gap-2",
+        "group relative flex gap-2 transition-opacity duration-150",
         // Dentro de una subcategoría: sangría y guía vertical.
         isInSection && "ml-2.5 border-l border-line-strong pl-2",
-        isDragging && "opacity-30",
+        isBeingDragged && "opacity-30",
       )}
     >
       <div className="flex w-5 flex-col items-center pt-1">
@@ -77,26 +86,24 @@ export function PageRow({
         >
           {label}
         </span>
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          aria-label={`Reordenar página ${label}`}
-          className="mt-1 cursor-grab rounded p-0.5 text-zinc-600 opacity-0 transition-opacity group-hover:opacity-100 hover:text-zinc-300 focus-visible:opacity-100 active:cursor-grabbing"
-        >
-          <GripVertical className="size-3.5" />
-        </button>
       </div>
 
       <button
         type="button"
         onClick={onClick}
         onPointerDown={listeners?.onPointerDown as React.PointerEventHandler<HTMLButtonElement> | undefined}
+        onKeyDown={(e) => {
+          if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+            e.preventDefault();
+            e.stopPropagation();
+            onNudge(e.key === "ArrowUp" ? -1 : 1);
+          }
+        }}
         aria-current={isActive ? "page" : undefined}
         aria-pressed={isMultiSelecting ? isSelected : undefined}
         aria-label={`Página ${label}`}
-        title="Clic: abrir · ⌘/Ctrl+clic: añadir a la selección · Shift+clic: rango · arrastra para mover"
+        aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+        title="Clic: abrir · ⌘/Ctrl+clic o Shift+clic: elegir varias · arrastra para mover"
         className={cn(
           "relative cursor-grab touch-none overflow-hidden rounded-[4px] ring-offset-2 ring-offset-surface-1 transition-shadow duration-150 active:cursor-grabbing",
           isCompact ? "w-[72px] flex-none" : "flex-1",
@@ -128,6 +135,13 @@ export function PageRow({
       </button>
 
       <div className="absolute top-1 right-1 flex flex-col gap-0.5 rounded-md border border-line bg-surface-1/95 p-0.5 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+        <IconButton
+          label={isMultiSelecting && isSelected ? "Mover las seleccionadas a…" : "Mover a…"}
+          size="sm"
+          onClick={(e) => onMoveTo(e.currentTarget)}
+        >
+          <FolderInput className="size-3.5" />
+        </IconButton>
         <IconButton label="Duplicar página" size="sm" onClick={onDuplicate}>
           <Copy className="size-3.5" />
         </IconButton>

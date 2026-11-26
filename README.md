@@ -54,6 +54,7 @@ src/
 | Cambiar de página | `RePág` / `AvPág` |
 | Reordenar páginas | arrastra la miniatura arriba/abajo · teclado: asa ⋮⋮ + `Espacio`, flechas, `Espacio` |
 | Seleccionar varias páginas | `Ctrl/Cmd+clic` (añadir/quitar) · `Shift+clic` (rango) · `Esc` quita la selección · `Supr` las elimina |
+| Mover la página (o la selección) un puesto | `Alt+↑` / `Alt+↓` con la miniatura enfocada |
 | Encuadrar imagen de la viñeta | doble clic o `Enter` · `Esc` para salir |
 | Mover imagen dentro de la viñeta | flechas (1u) · `Shift` + flechas (10u) |
 | Quitar imagen de la viñeta | `Supr` con la viñeta seleccionada |
@@ -68,13 +69,14 @@ src/
 
 ## Panel de páginas: subcategorías
 
-- **Varias páginas a la vez:** selecciónalas con `Cmd/Ctrl+clic` o `Shift+clic` y arrastra cualquiera de ellas: se mueven juntas, en su orden.
-- **Subcategorías:** botón de carpeta (o "Agrupar" en la barra de selección) para agrupar las páginas elegidas; el nombre se edita al momento, con doble clic o con el lápiz.
-- **Plegar / desplegar** con la flecha del encabezado. Clic en el nombre selecciona todas sus páginas.
-- **Mover una subcategoría completa** arrastrando su encabezado.
-- Arrastrar una página dentro de una subcategoría la incluye; por encima de su encabezado, la saca. También "Sacar de su subcategoría" o "Desagrupar" (las páginas se quedan).
-- La numeración y la exportación siguen el orden real de las páginas; todo se puede deshacer con `Cmd+Z`.
-- Botón de filas: miniaturas pequeñas para ver y mover muchas páginas.
+- **Meter páginas en una subcategoría:** arrástralas **sobre la carpeta** (su encabezado). La carpeta se ilumina y la etiqueta junto al cursor dice "Dentro de «…»"; quedan al final. Si está plegada y mantienes el puntero encima, se abre sola.
+- **Colocarlas en un punto exacto:** una línea naranja marca dónde caerán; si va sangrada, quedan dentro de esa subcategoría. Las páginas no se reacomodan mientras arrastras.
+- **Sacarlas:** suéltalas por encima del encabezado o en cualquier sitio fuera; o "Mover a… → Sin subcategoría".
+- **Sin arrastrar:** botón "Mover a…" (carpeta con flecha) en cada página o en la barra de selección; o `Alt+↑` / `Alt+↓` con la miniatura enfocada (cruzar el borde de una subcategoría es un paso: entra o sale).
+- **Varias a la vez:** `Cmd/Ctrl+clic` o `Shift+clic` y arrastra cualquiera de ellas; se mueven juntas en su orden.
+- **Crear / renombrar / plegar:** botón de carpeta "+" (agrupa la selección y pide el nombre); doble clic o lápiz para renombrar; flecha para plegar. Clic en el nombre selecciona sus páginas.
+- **Mover una subcategoría completa** arrastrando su encabezado (siempre queda entre otros bloques, no dentro de otra).
+- Numeración y exportación siguen el orden real; todo se deshace con `Cmd+Z`. Botón de filas: miniaturas pequeñas.
 
 ## Imágenes
 

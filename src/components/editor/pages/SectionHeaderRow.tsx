@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { ChevronRight, Folder, GripVertical, Pencil, Trash2, Ungroup } from "lucide-react";
+import { useDraggable } from "@dnd-kit/core";
+import { ChevronRight, Folder, FolderOpen, Pencil, Trash2, Ungroup } from "lucide-react";
 import { IconButton } from "@/components/ui/Button";
 import type { PageSection } from "@/lib/types";
 import { cn, formatPageNumber } from "@/lib/utils";
@@ -49,6 +48,11 @@ type Props = {
   isCollapsed: boolean;
   isEditing: boolean;
   isSelected: boolean;
+  /** Se está arrastrando algo y caería DENTRO de esta subcategoría. */
+  isDropTarget: boolean;
+  /** Esta subcategoría es la que se arrastra. */
+  isBeingDragged: boolean;
+  measureRef: (el: HTMLElement | null) => void;
   onToggle: () => void;
   onSelectPages: (e: React.MouseEvent) => void;
   onStartEdit: () => void;
@@ -70,6 +74,9 @@ export function SectionHeaderRow({
   isCollapsed,
   isEditing,
   isSelected,
+  isDropTarget,
+  isBeingDragged,
+  measureRef,
   onToggle,
   onSelectPages,
   onStartEdit,
@@ -78,9 +85,7 @@ export function SectionHeaderRow({
   onUngroup,
   onDelete,
 }: Props) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: rowId,
-  });
+  const { listeners, setNodeRef } = useDraggable({ id: rowId });
   const range =
     pageCount > 1
       ? `${formatPageNumber(firstNumber)}–${formatPageNumber(firstNumber + pageCount - 1)}`
@@ -88,27 +93,22 @@ export function SectionHeaderRow({
 
   return (
     <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn("group relative", isDragging && "opacity-30")}
+      ref={(el) => {
+        setNodeRef(el);
+        measureRef(el);
+      }}
+      className={cn("group relative transition-opacity duration-150", isBeingDragged && "opacity-30")}
     >
       <div
         className={cn(
-          "relative flex h-9 items-center gap-1 rounded-lg border pr-1 pl-0.5 transition-colors",
-          isSelected ? "border-accent/50 bg-accent-soft" : "border-line bg-surface-2 hover:border-line-strong",
+          "relative flex h-9 items-center gap-1 rounded-lg border pr-1 pl-1 transition-[background-color,border-color,box-shadow] duration-150",
+          isDropTarget
+            ? "border-accent bg-accent/20 shadow-[0_0_0_3px_var(--color-accent-soft)]"
+            : isSelected
+              ? "border-accent/50 bg-accent-soft"
+              : "border-line bg-surface-2 hover:border-line-strong",
         )}
       >
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          aria-label={`Mover la subcategoría ${section.name}`}
-          className="cursor-grab rounded p-0.5 text-zinc-600 opacity-0 transition-opacity group-hover:opacity-100 hover:text-zinc-300 focus-visible:opacity-100 active:cursor-grabbing"
-        >
-          <GripVertical className="size-3.5" />
-        </button>
-
         <button
           type="button"
           onClick={onToggle}
@@ -131,7 +131,11 @@ export function SectionHeaderRow({
             title="Clic: seleccionar sus páginas · doble clic: renombrar · arrastra para mover la subcategoría"
             className="flex min-w-0 flex-1 cursor-grab touch-none items-center gap-1.5 text-left active:cursor-grabbing"
           >
-            <Folder className="size-3.5 shrink-0 text-accent" />
+            {isDropTarget ? (
+              <FolderOpen className="size-3.5 shrink-0 text-accent" />
+            ) : (
+              <Folder className="size-3.5 shrink-0 text-accent" />
+            )}
             <span className="truncate text-xs font-medium text-zinc-100">{section.name || "Sin nombre"}</span>
             <span className="ml-auto shrink-0 text-[10px] text-zinc-500 tabular-nums">{range}</span>
           </button>
